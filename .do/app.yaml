@@ -24,14 +24,13 @@ services:
       npm run build
       echo "=== Build complete ==="
 
-    # Run command - migrations then start web server
+    # Run command - migrations then let Procfile handle server start
     run_command: |
       php artisan module:enable KitchenPrinter || true
       php artisan config:cache
       php artisan route:cache
       php artisan migrate --force --no-interaction
       composer dump-autoload
-      heroku-php-nginx -C nginx.conf public/
 
     environment_slug: php
     instance_count: 1
