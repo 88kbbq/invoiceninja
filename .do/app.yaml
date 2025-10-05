@@ -89,7 +89,7 @@ services:
         value: "base64:gZovGEGy41IsfPvWi8c2/xavGG5dhdd56DOx2b3xUqw="
         type: SECRET
       - key: APP_URL
-        value: "https://invoice-ninja-production-n5kgh.ondigitalocean.app"
+        value: "https://invoice-ninja-production-f3dqj.ondigitalocean.app"
 
       # Kitchen Printer Module (disabled by default)
       - key: KITCHEN_PRINTER_ENABLED
