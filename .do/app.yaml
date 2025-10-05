@@ -83,6 +83,10 @@ services:
         value: ${dbaas-db-9899155.USERNAME}
       - key: DB_PASSWORD
         value: ${dbaas-db-9899155.PASSWORD}
+      - key: MYSQL_ATTR_SSL_CA
+        value: "/etc/ssl/certs/ca-certificates.crt"
+      - key: DB_SOCKET
+        value: ""
 
       # Application keys (REQUIRED)
       - key: APP_KEY
