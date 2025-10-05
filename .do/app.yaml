@@ -40,7 +40,7 @@ services:
       php artisan module:enable KitchenPrinter || true
       php artisan config:cache
       php artisan route:cache
-      php artisan migrate --force --no-interaction --skip-schema-load
+      php artisan migrate --force --no-interaction 2>&1 | grep -v "mysql: not found" || true
       composer dump-autoload
       exec heroku-php-nginx -C nginx.conf public/
 
