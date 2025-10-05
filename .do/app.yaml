@@ -40,7 +40,7 @@ services:
       php artisan module:enable KitchenPrinter || true
       php artisan config:cache
       php artisan route:cache
-      php artisan migrate --force --no-interaction
+      php artisan migrate --force --no-interaction --skip-schema-load
       composer dump-autoload
       exec heroku-php-nginx -C nginx.conf public/
 
@@ -83,6 +83,13 @@ services:
         value: ${dbaas-db-9899155.USERNAME}
       - key: DB_PASSWORD
         value: ${dbaas-db-9899155.PASSWORD}
+
+      # Application keys (REQUIRED)
+      - key: APP_KEY
+        value: "base64:gZovGEGy41IsfPvWi8c2/xavGG5dhdd56DOx2b3xUqw="
+        type: SECRET
+      - key: APP_URL
+        value: "https://invoice-ninja-production-n5kgh.ondigitalocean.app"
 
       # Kitchen Printer Module (disabled by default)
       - key: KITCHEN_PRINTER_ENABLED
