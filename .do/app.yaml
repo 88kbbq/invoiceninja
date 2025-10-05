@@ -121,6 +121,14 @@ services:
       - key: PDF_GENERATOR
         value: snappdf
 
+      # Force HTTPS URLs (fixes mixed content errors)
+      - key: ASSET_URL
+        value: "https://invoice-ninja-production-f3dqj.ondigitalocean.app"
+      - key: FORCE_HTTPS
+        value: "true"
+      - key: TRUSTED_PROXIES
+        value: "*"
+
 # Note: Set these via Digital Ocean dashboard:
 # - APP_KEY (generate with: php artisan key:generate --show)
 # - APP_URL (your domain or DO app URL)
