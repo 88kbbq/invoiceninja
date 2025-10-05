@@ -1273,6 +1273,15 @@ git push origin production  # Deploys reverted code
 - **Documentation:** https://www.star-m.jp/products/s_print/CloudPRNTSDK/Documentation/en/
 - **Star Document Markup:** https://www.star-m.jp/products/s_print/sdk/StarWebPrintSDK/Documentation/en/
 
+### TapPay Payment Gateway
+- **Main Documentation:** https://docs.tappaysdk.com
+- **Developer Portal:** https://portal.tappaysdk.com (requires login)
+- **Support:** support@cherri.tech
+- **Payment Methods:** Direct Pay (Credit Cards), Electronic Payments (E-wallets), Token Pay (Apple/Google Pay)
+- **Supported Networks:** Visa, Mastercard, JCB, AMEX, UnionPay
+- **Integration:** Frontend tokenization (GetPrime) + Backend REST API
+- **Analysis Report:** See TAPPAY_ANALYSIS_REPORT.md for implementation planning
+
 ### Development Tools
 - **Laravel Modules:** https://nwidart.com/laravel-modules/
 - **Fractal (API Transformers):** https://fractal.thephpleague.com/
