@@ -24,13 +24,46 @@ services:
       npm run build
       echo "=== Build complete ==="
 
-    # Run command - migrations then let Procfile handle server start
+    # Run command - create .env, run migrations, start server
+    # Note: Environment variables are available at runtime, not during build
     run_command: |
+      echo "Creating .env file from environment variables..."
+      cat > .env << EOF
+      APP_NAME="${APP_NAME}"
+      APP_ENV="${APP_ENV}"
+      APP_KEY="${APP_KEY}"
+      APP_DEBUG="${APP_DEBUG}"
+      APP_URL="${APP_URL}"
+
+      DB_CONNECTION="${DB_CONNECTION}"
+      DB_HOST="${DB_HOST}"
+      DB_PORT="${DB_PORT}"
+      DB_DATABASE="${DB_DATABASE}"
+      DB_USERNAME="${DB_USERNAME}"
+      DB_PASSWORD="${DB_PASSWORD}"
+
+      CACHE_DRIVER="${CACHE_DRIVER}"
+      SESSION_DRIVER="${SESSION_DRIVER}"
+      QUEUE_CONNECTION="${QUEUE_CONNECTION}"
+
+      LOG_CHANNEL="${LOG_CHANNEL}"
+      BROADCAST_DRIVER="${BROADCAST_DRIVER}"
+
+      REQUIRE_HTTPS="${REQUIRE_HTTPS}"
+      PDF_GENERATOR="${PDF_GENERATOR}"
+
+      KITCHEN_PRINTER_ENABLED="${KITCHEN_PRINTER_ENABLED}"
+      CLOUDPRNT_URL="${CLOUDPRNT_URL}"
+      CLOUDPRNT_MAC="${CLOUDPRNT_MAC}"
+      KITCHEN_PRINT_TEMPLATE="${KITCHEN_PRINT_TEMPLATE}"
+      EOF
+      echo ".env file created"
       php artisan module:enable KitchenPrinter || true
       php artisan config:cache
       php artisan route:cache
       php artisan migrate --force --no-interaction
       composer dump-autoload
+      exec heroku-php-nginx -C nginx.conf public/
 
     environment_slug: php
     instance_count: 1
