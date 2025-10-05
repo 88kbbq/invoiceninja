@@ -28,7 +28,14 @@ services:
     # Note: Environment variables are available at runtime, not during build
     run_command: |
       echo "Creating .env file..."
-      env | grep -E '^(APP_|DB_|CACHE_|SESSION_|QUEUE_|LOG_|BROADCAST_|REQUIRE_|PDF_|KITCHEN_|CLOUDPRNT_)' > .env
+      env | grep -E '^(APP_|DB_|CACHE_|SESSION_|QUEUE_|LOG_|BROADCAST_|REQUIRE_|PDF_|KITCHEN_|CLOUDPRNT_)' | while IFS='=' read -r key value; do
+        # Properly quote values that contain spaces or special characters
+        if [[ "$value" =~ [[:space:]] ]] || [[ "$value" =~ [\"\'\`\$] ]]; then
+          echo "$key=\"$value\"" >> .env
+        else
+          echo "$key=$value" >> .env
+        fi
+      done
       echo ".env file created with $(wc -l < .env) variables"
       php artisan module:enable KitchenPrinter || true
       php artisan config:cache
