@@ -1,0 +1,239 @@
+name: invoice-ninja-production
+region: sgp1
+
+# Use existing managed MySQL database
+databases:
+  - name: dbaas-db-9899155
+    engine: MYSQL
+    production: true
+    cluster_name: dbaas-db-9899155
+
+# Main web service
+services:
+  - name: web
+    github:
+      repo: 88kbbq/invoiceninja
+      branch: production
+      deploy_on_push: true
+
+    # Build command - install dependencies and build assets
+    build_command: |
+      echo "=== Starting build ==="
+      composer install --no-dev --optimize-autoloader --no-interaction
+      npm install
+      npm run build
+      echo "=== Running module setup ==="
+      bash scripts/setup-modules.sh || echo "Module setup will complete after environment variables are set"
+      echo "=== Build complete ==="
+
+    # Run command - start PHP-FPM
+    run_command: |
+      php artisan config:cache
+      php artisan route:cache
+      php artisan migrate --force --no-interaction
+      php-fpm
+
+    environment_slug: php
+    instance_count: 1
+    instance_size_slug: professional-xs
+
+    http_port: 8080
+
+    routes:
+      - path: /
+
+    health_check:
+      http_path: /api/v1/health
+      initial_delay_seconds: 60
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+    # Environment variables
+    envs:
+      - key: APP_NAME
+        value: "Invoice Ninja"
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_URL
+        value: ${APP_URL}
+        type: SECRET
+      - key: APP_KEY
+        value: ${APP_KEY}
+        type: SECRET
+
+      # Database connection (populated from managed database)
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        value: ${dbaas-db-9899155.HOSTNAME}
+      - key: DB_PORT
+        value: ${dbaas-db-9899155.PORT}
+      - key: DB_DATABASE
+        value: ${dbaas-db-9899155.DATABASE}
+      - key: DB_USERNAME
+        value: ${dbaas-db-9899155.USERNAME}
+      - key: DB_PASSWORD
+        value: ${dbaas-db-9899155.PASSWORD}
+      - key: DATABASE_URL
+        value: ${dbaas-db-9899155.DATABASE_URL}
+
+      # Kitchen Printer Module Configuration
+      - key: KITCHEN_PRINTER_ENABLED
+        value: ${KITCHEN_PRINTER_ENABLED}
+        type: SECRET
+      - key: CLOUDPRNT_URL
+        value: ${CLOUDPRNT_URL}
+        type: SECRET
+      - key: CLOUDPRNT_MAC
+        value: ${CLOUDPRNT_MAC}
+        type: SECRET
+      - key: KITCHEN_PRINT_TEMPLATE
+        value: default
+
+      # Cache and Queue
+      - key: CACHE_DRIVER
+        value: redis
+      - key: SESSION_DRIVER
+        value: redis
+      - key: QUEUE_CONNECTION
+        value: redis
+
+      # Redis (we'll add a Redis database in next section)
+      - key: REDIS_HOST
+        value: ${redis.HOSTNAME}
+      - key: REDIS_PORT
+        value: ${redis.PORT}
+      - key: REDIS_PASSWORD
+        value: ${redis.PASSWORD}
+
+      # Mail configuration
+      - key: MAIL_MAILER
+        value: ${MAIL_MAILER}
+        type: SECRET
+      - key: MAIL_HOST
+        value: ${MAIL_HOST}
+        type: SECRET
+      - key: MAIL_PORT
+        value: ${MAIL_PORT}
+        type: SECRET
+      - key: MAIL_USERNAME
+        value: ${MAIL_USERNAME}
+        type: SECRET
+      - key: MAIL_PASSWORD
+        value: ${MAIL_PASSWORD}
+        type: SECRET
+      - key: MAIL_ENCRYPTION
+        value: ${MAIL_ENCRYPTION}
+        type: SECRET
+      - key: MAIL_FROM_ADDRESS
+        value: ${MAIL_FROM_ADDRESS}
+        type: SECRET
+      - key: MAIL_FROM_NAME
+        value: ${MAIL_FROM_NAME}
+        type: SECRET
+
+      # Laravel specific
+      - key: LOG_CHANNEL
+        value: stack
+      - key: BROADCAST_DRIVER
+        value: log
+
+      # Invoice Ninja specific
+      - key: REQUIRE_HTTPS
+        value: "true"
+      - key: PDF_GENERATOR
+        value: snappdf
+
+      # Additional environment variables will be set via Digital Ocean dashboard
+
+    # Persistent storage for uploaded files
+    storage:
+      - path: /app/storage
+        name: app-storage
+      - path: /app/public/storage
+        name: public-storage
+
+# Queue worker for background jobs
+workers:
+  - name: queue-worker
+    github:
+      repo: 88kbbq/invoiceninja
+      branch: production
+
+    build_command: composer install --no-dev --optimize-autoloader --no-interaction
+
+    run_command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+
+    environment_slug: php
+    instance_count: 1
+    instance_size_slug: basic-xxs
+
+    # Share same environment variables as web service
+    envs:
+      - key: APP_ENV
+        value: production
+      - key: APP_KEY
+        value: ${APP_KEY}
+        type: SECRET
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        value: ${dbaas-db-9899155.HOSTNAME}
+      - key: DB_PORT
+        value: ${dbaas-db-9899155.PORT}
+      - key: DB_DATABASE
+        value: ${dbaas-db-9899155.DATABASE}
+      - key: DB_USERNAME
+        value: ${dbaas-db-9899155.USERNAME}
+      - key: DB_PASSWORD
+        value: ${dbaas-db-9899155.PASSWORD}
+      - key: REDIS_HOST
+        value: ${redis.HOSTNAME}
+      - key: REDIS_PORT
+        value: ${redis.PORT}
+      - key: REDIS_PASSWORD
+        value: ${redis.PASSWORD}
+      - key: QUEUE_CONNECTION
+        value: redis
+
+# Scheduler for Laravel cron jobs
+jobs:
+  - name: scheduler
+    github:
+      repo: 88kbbq/invoiceninja
+      branch: production
+
+    build_command: composer install --no-dev --optimize-autoloader --no-interaction
+
+    run_command: php artisan schedule:run
+
+    kind: CRON
+    schedule: "* * * * *"
+
+    environment_slug: php
+
+    envs:
+      - key: APP_ENV
+        value: production
+      - key: APP_KEY
+        value: ${APP_KEY}
+        type: SECRET
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        value: ${dbaas-db-9899155.HOSTNAME}
+      - key: DB_PORT
+        value: ${dbaas-db-9899155.PORT}
+      - key: DB_DATABASE
+        value: ${dbaas-db-9899155.DATABASE}
+      - key: DB_USERNAME
+        value: ${dbaas-db-9899155.USERNAME}
+      - key: DB_PASSWORD
+        value: ${dbaas-db-9899155.PASSWORD}
+
+# Note: Add Redis database separately in Digital Ocean dashboard
+# You can create a db-redis-sgp1 instance and link it to this app

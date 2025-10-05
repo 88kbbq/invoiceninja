@@ -1,0 +1,11 @@
+{
+    "name": "KitchenPrinter",
+    "alias": "kitchenprinter",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\KitchenPrinter\\Providers\\KitchenPrinterServiceProvider"
+    ],
+    "files": []
+}
