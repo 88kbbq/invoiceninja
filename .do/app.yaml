@@ -28,12 +28,22 @@ services:
     # Note: Environment variables are available at runtime, not during build
     run_command: |
       echo "Creating .env file..."
-      echo "DEBUG: Checking for MYSQL_PASSWORD from managed database..."
-      if [ -n "$MYSQL_PASSWORD" ]; then
+      : > .env
+      echo "DEBUG: Checking for database password variables..."
+      if [ -n "$DB_PASSWORD" ]; then
+        echo "DEBUG: DB_PASSWORD already present in environment"
+      elif [ -n "$MYSQL_PASSWORD" ]; then
         export DB_PASSWORD="$MYSQL_PASSWORD"
         echo "DEBUG: Mapped MYSQL_PASSWORD to DB_PASSWORD"
+      elif [ -n "$DATABASE_URL" ]; then
+        export DB_PASSWORD=$(php -r 'echo parse_url(getenv("DATABASE_URL"), PHP_URL_PASS);')
+        if [ -n "$DB_PASSWORD" ]; then
+          echo "DEBUG: Extracted DB_PASSWORD from DATABASE_URL"
+        else
+          echo "WARNING: Failed to parse DB_PASSWORD from DATABASE_URL"
+        fi
       else
-        echo "WARNING: MYSQL_PASSWORD not found in environment!"
+        echo "WARNING: No database password environment variables found!"
       fi
       env | grep -E '^(APP_|DB_|CACHE_|SESSION_|QUEUE_|LOG_|BROADCAST_|REQUIRE_|PDF_|KITCHEN_|CLOUDPRNT_|MAIL_|FORCE_|TRUSTED_|ASSET_)' | while IFS='=' read -r key value; do
         # Properly quote values that contain spaces or special characters
@@ -55,6 +65,8 @@ services:
       exec heroku-php-nginx -C nginx.conf public/
 
     environment_slug: php
+    database:
+      name: dbaas-db-9899155
     instance_count: 1
     instance_size_slug: professional-xs
 
@@ -92,6 +104,8 @@ services:
         value: "ninjadb3"
       - key: DB_USERNAME
         value: "ninjauser"
+      - key: DB_PASSWORD
+        value: "${dbaas-db-9899155.PASSWORD}"
       - key: MYSQL_ATTR_SSL_CA
         value: "/etc/ssl/certs/ca-certificates.crt"
 
