@@ -103,15 +103,23 @@ services:
       - key: KITCHEN_PRINT_TEMPLATE
         value: "default"
 
-      # Cache (use file driver for simplicity)
+      # Cache and session configuration
       - key: CACHE_DRIVER
         value: file
       - key: SESSION_DRIVER
         value: file
+      - key: SESSION_LIFETIME
+        value: "720"
       - key: QUEUE_CONNECTION
-        value: database
+        value: sync
+
+      # Invoice Ninja configuration
       - key: NINJA_ENVIRONMENT
         value: selfhost
+      - key: MULTI_DB_ENABLED
+        value: "false"
+      - key: DEMO_MODE
+        value: "false"
 
       # Laravel specific
       - key: LOG_CHANNEL
