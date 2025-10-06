@@ -65,8 +65,6 @@ services:
       exec heroku-php-nginx -C nginx.conf public/
 
     environment_slug: php
-    database:
-      name: dbaas-db-9899155
     instance_count: 1
     instance_size_slug: professional-xs
 
