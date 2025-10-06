@@ -109,7 +109,9 @@ services:
       - key: SESSION_DRIVER
         value: file
       - key: QUEUE_CONNECTION
-        value: sync
+        value: database
+      - key: NINJA_ENVIRONMENT
+        value: selfhost
 
       # Laravel specific
       - key: LOG_CHANNEL
