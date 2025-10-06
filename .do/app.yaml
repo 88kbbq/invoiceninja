@@ -28,7 +28,7 @@ services:
     # Note: Environment variables are available at runtime, not during build
     run_command: |
       echo "Creating .env file..."
-      env | grep -E '^(APP_|DB_|CACHE_|SESSION_|QUEUE_|LOG_|BROADCAST_|REQUIRE_|PDF_|KITCHEN_|CLOUDPRNT_)' | while IFS='=' read -r key value; do
+      env | grep -E '^(APP_|DB_|CACHE_|SESSION_|QUEUE_|LOG_|BROADCAST_|REQUIRE_|PDF_|KITCHEN_|CLOUDPRNT_|MAIL_|FORCE_|TRUSTED_|ASSET_)' | while IFS='=' read -r key value; do
         # Properly quote values that contain spaces or special characters
         if [[ "$value" =~ [[:space:]] ]] || [[ "$value" =~ [\"\'\`\$] ]]; then
           echo "$key=\"$value\"" >> .env
@@ -40,7 +40,6 @@ services:
       php artisan module:enable KitchenPrinter || true
       php artisan config:cache
       php artisan route:cache
-      php artisan migrate --force --no-interaction 2>&1 | grep -v "mysql: not found" || true
       composer dump-autoload
       exec heroku-php-nginx -C nginx.conf public/
 
@@ -89,7 +88,7 @@ services:
 
       # Application keys (REQUIRED)
       - key: APP_KEY
-        value: "base64:gZovGEGy41IsfPvWi8c2/xavGG5dhdd56DOx2b3xUqw="
+        value: "base64:CoF/MqZAQJGQQFdJs7YZG5G+I9Ejd2wPe5h7L7VrvKA="
         type: SECRET
       - key: APP_URL
         value: "https://invoice-ninja-production-f3dqj.ondigitalocean.app"
