@@ -28,8 +28,13 @@ services:
     # Note: Environment variables are available at runtime, not during build
     run_command: |
       echo "Creating .env file..."
-      echo "DEBUG: Checking for DB_PASSWORD..."
-      env | grep DB_PASSWORD || echo "WARNING: DB_PASSWORD not found in environment!"
+      echo "DEBUG: Checking for MYSQL_PASSWORD from managed database..."
+      if [ -n "$MYSQL_PASSWORD" ]; then
+        export DB_PASSWORD="$MYSQL_PASSWORD"
+        echo "DEBUG: Mapped MYSQL_PASSWORD to DB_PASSWORD"
+      else
+        echo "WARNING: MYSQL_PASSWORD not found in environment!"
+      fi
       env | grep -E '^(APP_|DB_|CACHE_|SESSION_|QUEUE_|LOG_|BROADCAST_|REQUIRE_|PDF_|KITCHEN_|CLOUDPRNT_|MAIL_|FORCE_|TRUSTED_|ASSET_)' | while IFS='=' read -r key value; do
         # Properly quote values that contain spaces or special characters
         if [[ "$value" =~ [[:space:]] ]] || [[ "$value" =~ [\"\'\`\$] ]]; then
@@ -39,8 +44,8 @@ services:
         fi
       done
       echo ".env file created with $(wc -l < .env) variables"
-      echo "DEBUG: Checking if DB_PASSWORD is in .env..."
-      grep DB_PASSWORD .env || echo "WARNING: DB_PASSWORD not in .env file!"
+      echo "DEBUG: Verifying DB_PASSWORD is in .env..."
+      grep DB_PASSWORD .env && echo "SUCCESS: DB_PASSWORD found in .env!" || echo "ERROR: DB_PASSWORD still missing!"
       php artisan module:enable KitchenPrinter || true
       php artisan config:clear
       php artisan cache:clear
