@@ -42,8 +42,10 @@ services:
       echo "DEBUG: Checking if DB_PASSWORD is in .env..."
       grep DB_PASSWORD .env || echo "WARNING: DB_PASSWORD not in .env file!"
       php artisan module:enable KitchenPrinter || true
-      php artisan config:cache
-      php artisan route:cache
+      php artisan config:clear
+      php artisan cache:clear
+      php artisan view:clear
+      php artisan route:clear
       composer dump-autoload
       exec heroku-php-nginx -C nginx.conf public/
 
