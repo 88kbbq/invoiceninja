@@ -28,6 +28,8 @@ services:
     # Note: Environment variables are available at runtime, not during build
     run_command: |
       echo "Creating .env file..."
+      echo "DEBUG: Checking for DB_PASSWORD..."
+      env | grep DB_PASSWORD || echo "WARNING: DB_PASSWORD not found in environment!"
       env | grep -E '^(APP_|DB_|CACHE_|SESSION_|QUEUE_|LOG_|BROADCAST_|REQUIRE_|PDF_|KITCHEN_|CLOUDPRNT_|MAIL_|FORCE_|TRUSTED_|ASSET_)' | while IFS='=' read -r key value; do
         # Properly quote values that contain spaces or special characters
         if [[ "$value" =~ [[:space:]] ]] || [[ "$value" =~ [\"\'\`\$] ]]; then
@@ -37,6 +39,8 @@ services:
         fi
       done
       echo ".env file created with $(wc -l < .env) variables"
+      echo "DEBUG: Checking if DB_PASSWORD is in .env..."
+      grep DB_PASSWORD .env || echo "WARNING: DB_PASSWORD not in .env file!"
       php artisan module:enable KitchenPrinter || true
       php artisan config:cache
       php artisan route:cache
@@ -84,8 +88,6 @@ services:
         value: "ninjauser"
       - key: MYSQL_ATTR_SSL_CA
         value: "/etc/ssl/certs/ca-certificates.crt"
-      - key: DB_SOCKET
-        value: ""
 
       # Application keys (REQUIRED)
       - key: APP_KEY
@@ -94,15 +96,15 @@ services:
       - key: APP_URL
         value: "https://invoice-ninja-production-f3dqj.ondigitalocean.app"
 
-      # Kitchen Printer Module (disabled by default)
+      # Kitchen Printer Module (Star mC-Print3)
       - key: KITCHEN_PRINTER_ENABLED
-        value: "false"
+        value: "true"
       - key: CLOUDPRNT_URL
-        value: ""
+        value: "http://192.168.50.39:8080/CloudPRNT"
       - key: CLOUDPRNT_MAC
-        value: ""
+        value: "00:11:62:33:9A:46"
       - key: KITCHEN_PRINT_TEMPLATE
-        value: "default"
+        value: "kitchen"
 
       # Cache and session configuration
       - key: CACHE_DRIVER
