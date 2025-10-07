@@ -29,21 +29,61 @@ services:
     run_command: |
       echo "Creating .env file..."
       : > .env
-      echo "DEBUG: Checking for database password variables..."
-      if [ -n "$DB_PASSWORD" ]; then
-        echo "DEBUG: DB_PASSWORD already present in environment"
-      elif [ -n "$MYSQL_PASSWORD" ]; then
-        export DB_PASSWORD="$MYSQL_PASSWORD"
-        echo "DEBUG: Mapped MYSQL_PASSWORD to DB_PASSWORD"
-      elif [ -n "$DATABASE_URL" ]; then
-        export DB_PASSWORD=$(php -r 'echo parse_url(getenv("DATABASE_URL"), PHP_URL_PASS);')
-        if [ -n "$DB_PASSWORD" ]; then
-          echo "DEBUG: Extracted DB_PASSWORD from DATABASE_URL"
-        else
-          echo "WARNING: Failed to parse DB_PASSWORD from DATABASE_URL"
+      echo "DEBUG: Normalising database credentials..."
+      # DigitalOcean attachments may expose credentials under multiple prefixes
+      if [ -z "$DB_HOST" ] || [ "$DB_HOST" = "" ]; then
+        if [ -n "$DATABASE_HOST" ]; then
+          export DB_HOST="$DATABASE_HOST"
+          echo "DEBUG: Mapped DATABASE_HOST -> DB_HOST"
+        elif [ -n "$MYSQL_HOST" ]; then
+          export DB_HOST="$MYSQL_HOST"
+          echo "DEBUG: Mapped MYSQL_HOST -> DB_HOST"
         fi
-      else
-        echo "WARNING: No database password environment variables found!"
+      fi
+      if [ -z "$DB_PORT" ] || [ "$DB_PORT" = "" ]; then
+        if [ -n "$DATABASE_PORT" ]; then
+          export DB_PORT="$DATABASE_PORT"
+          echo "DEBUG: Mapped DATABASE_PORT -> DB_PORT"
+        elif [ -n "$MYSQL_PORT" ]; then
+          export DB_PORT="$MYSQL_PORT"
+          echo "DEBUG: Mapped MYSQL_PORT -> DB_PORT"
+        fi
+      fi
+      if [ -z "$DB_DATABASE" ] || [ "$DB_DATABASE" = "" ]; then
+        if [ -n "$DATABASE_NAME" ]; then
+          export DB_DATABASE="$DATABASE_NAME"
+          echo "DEBUG: Mapped DATABASE_NAME -> DB_DATABASE"
+        elif [ -n "$MYSQL_DATABASE" ]; then
+          export DB_DATABASE="$MYSQL_DATABASE"
+          echo "DEBUG: Mapped MYSQL_DATABASE -> DB_DATABASE"
+        fi
+      fi
+      if [ -z "$DB_USERNAME" ] || [ "$DB_USERNAME" = "" ]; then
+        if [ -n "$DATABASE_USER" ]; then
+          export DB_USERNAME="$DATABASE_USER"
+          echo "DEBUG: Mapped DATABASE_USER -> DB_USERNAME"
+        elif [ -n "$MYSQL_USER" ]; then
+          export DB_USERNAME="$MYSQL_USER"
+          echo "DEBUG: Mapped MYSQL_USER -> DB_USERNAME"
+        fi
+      fi
+      if [ -z "$DB_PASSWORD" ] || [ "$DB_PASSWORD" = "" ]; then
+        if [ -n "$DATABASE_PASSWORD" ]; then
+          export DB_PASSWORD="$DATABASE_PASSWORD"
+          echo "DEBUG: Mapped DATABASE_PASSWORD -> DB_PASSWORD"
+        elif [ -n "$MYSQL_PASSWORD" ]; then
+          export DB_PASSWORD="$MYSQL_PASSWORD"
+          echo "DEBUG: Mapped MYSQL_PASSWORD -> DB_PASSWORD"
+        elif [ -n "$DATABASE_URL" ]; then
+          export DB_PASSWORD=$(php -r 'echo parse_url(getenv("DATABASE_URL"), PHP_URL_PASS);')
+          if [ -n "$DB_PASSWORD" ]; then
+            echo "DEBUG: Extracted DB_PASSWORD from DATABASE_URL"
+          fi
+        fi
+      fi
+      if [ -z "$DB_PASSWORD" ] || [ "$DB_PASSWORD" = "" ]; then
+        echo "ERROR: DB_PASSWORD is not available; aborting startup."
+        exit 1
       fi
       env | grep -E '^(APP_|DB_|MYSQL_|CACHE_|SESSION_|QUEUE_|LOG_|BROADCAST_|REQUIRE_|PDF_|KITCHEN_|CLOUDPRNT_|MAIL_|FORCE_|TRUSTED_|ASSET_)' | while IFS='=' read -r key value; do
         # Properly quote values that contain spaces or special characters
@@ -55,7 +95,10 @@ services:
       done
       echo ".env file created with $(wc -l < .env) variables"
       echo "DEBUG: Verifying DB_PASSWORD is in .env..."
-      grep DB_PASSWORD .env && echo "SUCCESS: DB_PASSWORD found in .env!" || echo "ERROR: DB_PASSWORD still missing!"
+      if ! grep -q '^DB_PASSWORD=' .env; then
+        echo "ERROR: DB_PASSWORD still missing from .env; aborting."
+        exit 1
+      fi
       php artisan module:enable KitchenPrinter || true
       php artisan config:clear
       php artisan cache:clear
@@ -102,8 +145,7 @@ services:
         value: "ninjadb3"
       - key: DB_USERNAME
         value: "ninjauser"
-      - key: DB_PASSWORD
-        value: "${dbaas-db-9899155.PASSWORD}"
+      # DB_PASSWORD set in Digital Ocean dashboard (ninjauser password)
       - key: MYSQL_ATTR_SSL_CA
         value: "/etc/ssl/certs/ca-certificates.crt"
 
@@ -150,7 +192,7 @@ services:
 
       # Invoice Ninja specific
       - key: REQUIRE_HTTPS
-        value: "true"
+        value: "false"
       - key: PDF_GENERATOR
         value: snappdf
 
@@ -158,7 +200,7 @@ services:
       - key: ASSET_URL
         value: "https://invoice-ninja-production-f3dqj.ondigitalocean.app"
       - key: FORCE_HTTPS
-        value: "true"
+        value: "false"
       - key: TRUSTED_PROXIES
         value: "*"
 
