@@ -179,4 +179,4 @@ For further information on responsible disclosure please read [here](https://che
 
 ## License
 Invoice Ninja is released under the Elastic License.  
-See [LICENSE](LICENSE) for details.
+See [LICENSE](LICENSE) for details.# Test GitHub Actions deployment
