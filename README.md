@@ -183,3 +183,4 @@ See [LICENSE](LICENSE) for details.# Test GitHub Actions deployment
 # Deployment infrastructure configured
 # Fix bootstrap/cache permissions
 # SnapPDF configured for PDF generation
+# Preserve bootstrap/cache during deployment
