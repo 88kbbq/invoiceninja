@@ -521,6 +521,9 @@ class HtmlEngine
         $data['$client.country'] = &$data['$country'];
         $data['$client.email'] = &$data['$email'];
         $data['$client.classification'] = ['value' => isset($this->client->classification) ? ctrans("texts.{$this->client->classification}") : ' ', 'label' => ctrans('texts.classification')];
+
+        $data['$client.location_name'] = ['value' => $locationData['location_name'], 'label' => ctrans('texts.location')];
+
         $data['$client.billing_address'] = &$data['$client_address'];
         $data['$client.billing_address1'] = &$data['$client.address1'];
         $data['$client.billing_address2'] = &$data['$client.address2'];

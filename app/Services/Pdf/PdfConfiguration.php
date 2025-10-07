@@ -226,7 +226,7 @@ class PdfConfiguration
             $this->entity_design_id = 'purchase_order_design_id';
             $this->settings = $this->vendor->company->settings;
             $this->settings_object = $this->vendor;
-            $this->client = null;
+            $this->client = $this->entity->client ?? null;
             $this->country = $this->vendor->country ?? $this->vendor->company->country();
         } else {
             throw new \Exception('Unable to resolve entity', 500);

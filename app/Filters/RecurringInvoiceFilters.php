@@ -204,7 +204,13 @@ class RecurringInvoiceFilters extends QueryFilters
         $parts = explode('|', $range);
 
         if (!isset($parts[0]) || !isset($parts[1])) {
-            return $this->builder;
+
+            $parts = explode(',', $range);
+            
+            if (!isset($parts[0]) || !isset($parts[1])){
+                return $this->builder;
+            }
+            
         }
 
         if (is_numeric($parts[0])) {

@@ -13,13 +13,8 @@
 namespace App\Listeners\Payment;
 
 use App\Models\Invoice;
-use App\Models\Activity;
 use App\Models\TransactionEvent;
 use Illuminate\Support\Collection;
-use App\DataMapper\TaxReport\TaxDetail;
-use App\DataMapper\TaxReport\TaxReport;
-use App\DataMapper\TaxReport\TaxSummary;
-use App\Repositories\ActivityRepository;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use App\DataMapper\TransactionEventMetadata;
 use App\Libraries\MultiDB;
@@ -46,12 +41,24 @@ class PaymentTransactionEventEntry implements ShouldQueue
 
     /**
      */
-    public function __construct(private Payment $payment, private array $invoice_ids, private string $db, private float $invoice_adjustment = 0, private bool $is_deleted = false)
+    public function __construct(private Payment $payment, private array $invoice_ids, private string $db, private mixed $invoice_adjustment = 0, private bool $is_deleted = false)
     {}
 
     public function handle()
     {
         
+       try{
+        $this->runLog();
+       }
+       catch(\Throwable $e){
+        nlog("PaymentTransactionEventEntry::handle");
+        nlog($e->getMessage());
+        // nlog($e->getTraceAsString());
+       }
+    }
+
+    private function runLog()
+    {
         //payment vs refunded
         MultiDB::setDb($this->db);
 
@@ -240,7 +247,7 @@ class PaymentTransactionEventEntry implements ShouldQueue
 
     private function getTotalTaxPaid($invoice)
     {
-        if ($invoice->amount == 0) {
+        if ((int)$invoice->amount == 0) {
             return 0;
         }
 
@@ -255,9 +262,13 @@ class PaymentTransactionEventEntry implements ShouldQueue
         return [(new WithoutOverlapping("payment_transaction_event_entry_".$this->payment->id.'_'.$this->db))->releaseAfter(10)->expireAfter(30)];
     }
 
-    public function failed(\Throwable $exception = null)
+    public function failed(?\Throwable $exception)
     {
         nlog("PaymentTransactionEventEntry::failed");
+
+        if(!$exception)
+            return;
+        
         nlog($exception->getMessage());
     }
 }

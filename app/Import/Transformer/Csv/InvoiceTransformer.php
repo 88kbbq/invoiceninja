@@ -144,6 +144,8 @@ class InvoiceTransformer extends BaseTransformer
         }
 
         if (isset($invoice_data['payment.amount'])) {
+            $currency = $this->company->currency();
+
             $transformed['payments'] = [
                 [
                     'date' => isset($invoice_data['payment.date'])
@@ -153,10 +155,10 @@ class InvoiceTransformer extends BaseTransformer
                         $invoice_data,
                         'payment.transaction_reference'
                     ),
-                    'amount' => $this->getFloat(
+                    'amount' => round($this->getFloat(
                         $invoice_data,
                         'payment.amount'
-                    ),
+                    ), $currency->precision),
                 ],
             ];
         } elseif ($status === 'paid' || $transformed['status_id'] === Invoice::STATUS_PAID) {

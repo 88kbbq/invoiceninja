@@ -1,100 +1,95 @@
 name: invoice-ninja-production
 region: sgp1
 
-# Use existing managed MySQL database
 databases:
   - name: dbaas-db-9899155
     engine: MYSQL
-    production: true
     cluster_name: dbaas-db-9899155
+    production: true
 
-# Main web service
 services:
   - name: web
     github:
       repo: 88kbbq/invoiceninja
       branch: production
       deploy_on_push: true
-
-    # Build command - install dependencies and build assets
+    environment_slug: php
+    instance_count: 1
+    instance_size_slug: professional-xs
+    http_port: 8080
     build_command: |
       echo "=== Starting build ==="
       composer install --no-dev --optimize-autoloader --no-interaction
       npm ci --production
       npm run build
       echo "=== Build complete ==="
-
-    # Run command - create .env referencing environment variables, run migrations, start server
-    # Note: Environment variables are available at runtime, not during build
     run_command: |
+      set -euo pipefail
       echo "Creating .env file..."
       : > .env
-      echo "DEBUG: Normalising database credentials..."
-      # DigitalOcean attachments may expose credentials under multiple prefixes
-      if [ -z "$DB_HOST" ] || [ "$DB_HOST" = "" ]; then
-        if [ -n "$DATABASE_HOST" ]; then
+      echo "DEBUG: normalising database credentials..."
+      if [ -z "${DB_HOST:-}" ]; then
+        if [ -n "${DATABASE_HOST:-}" ]; then
           export DB_HOST="$DATABASE_HOST"
-          echo "DEBUG: Mapped DATABASE_HOST -> DB_HOST"
-        elif [ -n "$MYSQL_HOST" ]; then
+          echo "DEBUG: DATABASE_HOST -> DB_HOST"
+        elif [ -n "${MYSQL_HOST:-}" ]; then
           export DB_HOST="$MYSQL_HOST"
-          echo "DEBUG: Mapped MYSQL_HOST -> DB_HOST"
+          echo "DEBUG: MYSQL_HOST -> DB_HOST"
         fi
       fi
-      if [ -z "$DB_PORT" ] || [ "$DB_PORT" = "" ]; then
-        if [ -n "$DATABASE_PORT" ]; then
+      if [ -z "${DB_PORT:-}" ]; then
+        if [ -n "${DATABASE_PORT:-}" ]; then
           export DB_PORT="$DATABASE_PORT"
-          echo "DEBUG: Mapped DATABASE_PORT -> DB_PORT"
-        elif [ -n "$MYSQL_PORT" ]; then
+          echo "DEBUG: DATABASE_PORT -> DB_PORT"
+        elif [ -n "${MYSQL_PORT:-}" ]; then
           export DB_PORT="$MYSQL_PORT"
-          echo "DEBUG: Mapped MYSQL_PORT -> DB_PORT"
+          echo "DEBUG: MYSQL_PORT -> DB_PORT"
         fi
       fi
-      if [ -z "$DB_DATABASE" ] || [ "$DB_DATABASE" = "" ]; then
-        if [ -n "$DATABASE_NAME" ]; then
+      if [ -z "${DB_DATABASE:-}" ]; then
+        if [ -n "${DATABASE_NAME:-}" ]; then
           export DB_DATABASE="$DATABASE_NAME"
-          echo "DEBUG: Mapped DATABASE_NAME -> DB_DATABASE"
-        elif [ -n "$MYSQL_DATABASE" ]; then
+          echo "DEBUG: DATABASE_NAME -> DB_DATABASE"
+        elif [ -n "${MYSQL_DATABASE:-}" ]; then
           export DB_DATABASE="$MYSQL_DATABASE"
-          echo "DEBUG: Mapped MYSQL_DATABASE -> DB_DATABASE"
+          echo "DEBUG: MYSQL_DATABASE -> DB_DATABASE"
         fi
       fi
-      if [ -z "$DB_USERNAME" ] || [ "$DB_USERNAME" = "" ]; then
-        if [ -n "$DATABASE_USER" ]; then
+      if [ -z "${DB_USERNAME:-}" ]; then
+        if [ -n "${DATABASE_USER:-}" ]; then
           export DB_USERNAME="$DATABASE_USER"
-          echo "DEBUG: Mapped DATABASE_USER -> DB_USERNAME"
-        elif [ -n "$MYSQL_USER" ]; then
+          echo "DEBUG: DATABASE_USER -> DB_USERNAME"
+        elif [ -n "${MYSQL_USER:-}" ]; then
           export DB_USERNAME="$MYSQL_USER"
-          echo "DEBUG: Mapped MYSQL_USER -> DB_USERNAME"
+          echo "DEBUG: MYSQL_USER -> DB_USERNAME"
         fi
       fi
-      if [ -z "$DB_PASSWORD" ] || [ "$DB_PASSWORD" = "" ]; then
-        if [ -n "$DATABASE_PASSWORD" ]; then
+      if [ -z "${DB_PASSWORD:-}" ]; then
+        if [ -n "${DATABASE_PASSWORD:-}" ]; then
           export DB_PASSWORD="$DATABASE_PASSWORD"
-          echo "DEBUG: Mapped DATABASE_PASSWORD -> DB_PASSWORD"
-        elif [ -n "$MYSQL_PASSWORD" ]; then
+          echo "DEBUG: DATABASE_PASSWORD -> DB_PASSWORD"
+        elif [ -n "${MYSQL_PASSWORD:-}" ]; then
           export DB_PASSWORD="$MYSQL_PASSWORD"
-          echo "DEBUG: Mapped MYSQL_PASSWORD -> DB_PASSWORD"
-        elif [ -n "$DATABASE_URL" ]; then
-          export DB_PASSWORD=$(php -r 'echo parse_url(getenv("DATABASE_URL"), PHP_URL_PASS);')
-          if [ -n "$DB_PASSWORD" ]; then
-            echo "DEBUG: Extracted DB_PASSWORD from DATABASE_URL"
+          echo "DEBUG: MYSQL_PASSWORD -> DB_PASSWORD"
+        elif [ -n "${DATABASE_URL:-}" ]; then
+          export DB_PASSWORD="$(php -r 'echo parse_url(getenv("DATABASE_URL"), PHP_URL_PASS);')"
+          if [ -n "${DB_PASSWORD:-}" ]; then
+            echo "DEBUG: extracted DB_PASSWORD from DATABASE_URL"
           fi
         fi
       fi
-      if [ -z "$DB_PASSWORD" ] || [ "$DB_PASSWORD" = "" ]; then
+      if [ -z "${DB_PASSWORD:-}" ]; then
         echo "ERROR: DB_PASSWORD is not available; aborting startup."
         exit 1
       fi
       env | grep -E '^(APP_|DB_|MYSQL_|CACHE_|SESSION_|QUEUE_|LOG_|BROADCAST_|REQUIRE_|PDF_|KITCHEN_|CLOUDPRNT_|MAIL_|FORCE_|TRUSTED_|ASSET_)' | while IFS='=' read -r key value; do
-        # Properly quote values that contain spaces or special characters
-        if [[ "$value" =~ [[:space:]] ]] || [[ "$value" =~ [\"\'\`\$] ]]; then
-          echo "$key=\"$value\"" >> .env
+        if [[ "$value" =~ [[:space:]] ]] || [[ "$value" =~ ["'`$] ]]; then
+          printf '%s="%s"\n' "$key" "$value" >> .env
         else
-          echo "$key=$value" >> .env
+          printf '%s=%s\n' "$key" "$value" >> .env
         fi
       done
       echo ".env file created with $(wc -l < .env) variables"
-      echo "DEBUG: Verifying DB_PASSWORD is in .env..."
       if ! grep -q '^DB_PASSWORD=' .env; then
         echo "ERROR: DB_PASSWORD still missing from .env; aborting."
         exit 1
@@ -106,25 +101,6 @@ services:
       php artisan route:clear
       composer dump-autoload
       exec heroku-php-nginx -C nginx.conf public/
-
-    environment_slug: php
-    instance_count: 1
-    instance_size_slug: professional-xs
-
-    http_port: 8080
-
-    routes:
-      - path: /
-
-    health_check:
-      http_path: /
-      initial_delay_seconds: 90
-      period_seconds: 10
-      timeout_seconds: 5
-      success_threshold: 1
-      failure_threshold: 3
-
-    # Environment variables (set sensitive ones via dashboard)
     envs:
       - key: APP_NAME
         value: "Invoice Ninja"
@@ -132,41 +108,42 @@ services:
         value: production
       - key: APP_DEBUG
         value: "false"
-
-      # Database connection (matches old server configuration)
-      # NOTE: DB_PASSWORD must be set via Digital Ocean dashboard as encrypted secret
+      - key: APP_KEY
+        value: EV[1:GBLq4Uq2lsyBqiBlzpcWDKZuNWLb2P9c:J3Rc038XGzXEoXCudD8e4WFCD7wEWwr4EL0bMfBv6ez8attZTnA07ydgtOQu4w5uATq9d/je567+9iVEZt9DR+9iUQ==]
+        type: SECRET
+      - key: APP_URL
+        value: https://invoice-ninja-production-f3dqj.ondigitalocean.app
       - key: DB_CONNECTION
         value: mysql
       - key: DB_HOST
-        value: "dbaas-db-9899155-do-user-80331-0.b.db.ondigitalocean.com"
+        value: dbaas-db-9899155-do-user-80331-0.b.db.ondigitalocean.com
       - key: DB_PORT
         value: "25060"
       - key: DB_DATABASE
-        value: "ninjadb3"
+        value: ninjadb3
       - key: DB_USERNAME
-        value: "ninjauser"
-      # DB_PASSWORD set in Digital Ocean dashboard (ninjauser password)
-      - key: MYSQL_ATTR_SSL_CA
-        value: "/etc/ssl/certs/ca-certificates.crt"
-
-      # Application keys (REQUIRED)
-      - key: APP_KEY
-        value: "base64:CoF/MqZAQJGQQFdJs7YZG5G+I9Ejd2wPe5h7L7VrvKA="
+        value: ninjauser
+      - key: DB_PASSWORD
+        value: EV[1:If4rK6/6ATHCReTRf8k/uoB8YR27xGcn:hhwTRsrnywRpO3YBinYv0bbjrPu6Yz+g+1c+zUjSC//bb3MhhQkhnQ==]
         type: SECRET
-      - key: APP_URL
-        value: "https://invoice-ninja-production-f3dqj.ondigitalocean.app"
-
-      # Kitchen Printer Module (Star mC-Print3)
+      - key: MYSQL_ATTR_SSL_CA
+        value: /etc/ssl/certs/ca-certificates.crt
+      - key: REQUIRE_HTTPS
+        value: "false"
+      - key: FORCE_HTTPS
+        value: "false"
+      - key: TRUSTED_PROXIES
+        value: "*"
+      - key: PDF_GENERATOR
+        value: snappdf
       - key: KITCHEN_PRINTER_ENABLED
         value: "true"
       - key: CLOUDPRNT_URL
-        value: "http://192.168.50.39:8080/CloudPRNT"
+        value: http://192.168.50.39:8080/CloudPRNT
       - key: CLOUDPRNT_MAC
-        value: "00:11:62:33:9A:46"
+        value: 00:11:62:33:9A:46
       - key: KITCHEN_PRINT_TEMPLATE
-        value: "kitchen"
-
-      # Cache and session configuration
+        value: kitchen
       - key: CACHE_DRIVER
         value: file
       - key: SESSION_DRIVER
@@ -175,37 +152,23 @@ services:
         value: "720"
       - key: QUEUE_CONNECTION
         value: sync
-
-      # Invoice Ninja configuration
       - key: NINJA_ENVIRONMENT
         value: selfhost
       - key: MULTI_DB_ENABLED
         value: "false"
       - key: DEMO_MODE
         value: "false"
-
-      # Laravel specific
       - key: LOG_CHANNEL
         value: stack
       - key: BROADCAST_DRIVER
         value: log
-
-      # Invoice Ninja specific
-      - key: REQUIRE_HTTPS
-        value: "false"
-      - key: PDF_GENERATOR
-        value: snappdf
-
-      # Force HTTPS URLs (fixes mixed content errors)
       - key: ASSET_URL
-        value: "https://invoice-ninja-production-f3dqj.ondigitalocean.app"
-      - key: FORCE_HTTPS
-        value: "false"
-      - key: TRUSTED_PROXIES
-        value: "*"
+        value: https://invoice-ninja-production-f3dqj.ondigitalocean.app
 
-# Note: Set these via Digital Ocean dashboard:
-# - APP_KEY (generate with: php artisan key:generate --show)
-# - APP_URL (your domain or DO app URL)
-# - MAIL_* variables
-# - Any other production secrets
+ingress:
+  rules:
+    - match:
+        path:
+          prefix: /
+      component:
+        name: web

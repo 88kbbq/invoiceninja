@@ -3781,7 +3781,7 @@ Quando tiver as quantias, volte a esta página de formas de pagamento e clique "
     'notification_partial_payment_paid' => 'Um pagamento parcial de :amount foi feito pelo cliente :client para :invoice',
     'notification_bot' => 'Bot de notificação',
     'invoice_number_placeholder' => 'Fatura nº :invoice',
-    'entity_number_placeholder' => ':entity # :entity _número',
+    'entity_number_placeholder' => ':entity # :entity_number',
     'email_link_not_working' => 'Se o botão acima não estiver funcionando para você, clique no link',
     'display_log' => 'Exibir registro',
     'send_fail_logs_to_our_server' => 'Relate erros para ajudar a melhorar o aplicativo',

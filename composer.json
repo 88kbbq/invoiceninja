@@ -37,6 +37,7 @@
         "ext-json": "*",
         "ext-libxml": "*",
         "ext-simplexml": "*",
+        "ext-bcmath": "*",
         "afosto/yaac": "^1.5",
         "asm/php-ansible": "dev-main",
         "authorizenet/authorizenet": "^2.0",

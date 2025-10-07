@@ -72,7 +72,7 @@ class UpdateInvoiceRequest extends Request
             'sometimes',
             'not_in:5',
             function ($attribute, $value, $fail) {
-                if ($this->invoice->status_id == 5) {
+                if (in_array($this->invoice->status_id, [5, 6])) {
                     $fail(ctrans('texts.locked_invoice'));
                 }
             }

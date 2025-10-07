@@ -963,6 +963,7 @@ class CompanySettings extends BaseSettings
     {
         $variables = [
             'client_details' => [
+                '$client.location_name',
                 '$client.name',
                 '$client.number',
                 '$client.vat_number',

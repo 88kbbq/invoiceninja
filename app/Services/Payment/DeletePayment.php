@@ -19,6 +19,11 @@ use App\Models\BankTransaction;
 use App\Listeners\Payment\PaymentTransactionEventEntry;
 use Illuminate\Contracts\Container\BindingResolutionException;
 
+/**
+ * 
+ * @deprecated in favour of DeletePaymentV2
+ *
+ */ 
 class DeletePayment
 {
     private float $_paid_to_date_deleted = 0;
@@ -154,7 +159,7 @@ class DeletePayment
 
                     if (abs(floatval($paymentable_invoice->balance) - floatval($paymentable_invoice->amount)) < 0.005) {
                         $paymentable_invoice->service()->setStatus(Invoice::STATUS_SENT)->save();
-                    } elseif (floatval($paymentable_invoice->balance) == 0) {
+                    } elseif (abs(floatval($paymentable_invoice->balance)) < 0.005) {
                         $paymentable_invoice->service()->setStatus(Invoice::STATUS_PAID)->save();
                     } else {
                         $paymentable_invoice->service()->setStatus(Invoice::STATUS_PARTIAL)->save();

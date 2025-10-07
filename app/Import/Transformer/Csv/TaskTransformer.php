@@ -59,7 +59,7 @@ class TaskTransformer extends BaseTransformer
         ];
 
         if (count($task_items_data) == count($task_items_data, COUNT_RECURSIVE)) {
-            $transformed['time_log'] = json_encode([$this->parseLog($task_items_data)]);
+            $transformed['time_log'] = $this->parseLog($task_items_data) ? json_encode([$this->parseLog($task_items_data)]) : json_encode([]);
             return $transformed;
         }
 
@@ -98,7 +98,7 @@ class TaskTransformer extends BaseTransformer
             $end_date = $this->stubbed_timestamp + $duration;
             $this->stubbed_timestamp;
         } else {
-            return '';
+            return false;
         }
 
         return [(int)$start_date, (int)$end_date, (string)$notes, (bool)$is_billable];
@@ -120,7 +120,6 @@ class TaskTransformer extends BaseTransformer
 
             nlog("fall back failed too" . $e->getMessage());
             
-            // return $this->stubbed_timestamp;
         }
 
 

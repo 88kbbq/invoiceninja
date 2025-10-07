@@ -277,6 +277,16 @@ class RefundPayment
             foreach ($this->refund_data['invoices'] as $refunded_invoice) {
                 $invoice = Invoice::withTrashed()->find($refunded_invoice['invoice_id']);
 
+                if($invoice->status_id == Invoice::STATUS_REVERSED){
+                    $_credit = Credit::withTrashed()->where('invoice_id', $invoice->id)->first();
+                    $_credit->client->service()->adjustCreditBalance($_credit->balance * -1)->save();
+                    $_credit->paid_to_date += $_credit->balance;
+                    $_credit->balance = 0;
+                    $_credit->status_id = Credit::STATUS_APPLIED;
+                    $_credit->save();
+                    continue;
+                }
+
                 if ($invoice->trashed()) {
                     $invoice->restore();
                 }

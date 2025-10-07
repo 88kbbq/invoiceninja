@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(git clone:*)",
+      "Bash(doctl apps logs:*)",
+      "Bash(doctl apps list:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(doctl apps get-deployment:*)",
+      "Bash(doctl apps list-deployments:*)",
+      "Bash(doctl apps create-deployment:*)",
+      "Bash(doctl apps update:*)",
+      "Bash(doctl apps spec get:*)",
+      "Read(//private/tmp/**)",
+      "Read(//tmp/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

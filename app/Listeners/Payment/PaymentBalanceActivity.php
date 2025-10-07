@@ -14,13 +14,14 @@ namespace App\Listeners\Payment;
 
 use App\Libraries\MultiDB;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\SerializesModels;
 
 class PaymentBalanceActivity implements ShouldQueue
 {
-
-    use InteractsWithQueue;
+    use Dispatchable;
+    use SerializesModels;
 
     public $tries = 1;
     
@@ -46,7 +47,13 @@ class PaymentBalanceActivity implements ShouldQueue
     {
         MultiDB::setDb($event->company->db);
 
-        $event->payment->client->service()->updatePaymentBalance();
+        try{
+            $event->payment->client->service()->updatePaymentBalance();
+        }
+        catch(\Throwable $e){
+
+            nlog("PaymentBalanceActivity ".$e->getMessage());
+        }
     }
 
     public function middleware($event): array
@@ -57,8 +64,8 @@ class PaymentBalanceActivity implements ShouldQueue
     public function failed($exception)
     {
         if ($exception) {
-            nlog('PaymentBalanceActivity failed', ['exception' => $exception]);
-        }
+            nlog('PaymentBalanceActivity failed ' . $exception->getMessage());
+        } 
 
         // config(['queue.failed.driver' => null]);
     }

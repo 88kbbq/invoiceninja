@@ -699,6 +699,10 @@ $f->appendXML('<![CDATA[' . $decoded_template . ']]>');
                 'id' => 'vendor-details',
                 'elements' => $this->vendorDetails(),
             ],
+            'shipping-details' => [
+                'id' => 'shipping-details',
+                'elements' => $this->shippingDetails(),
+            ],
             'entity-details' => [
                 'id' => 'entity-details',
                 'elements' => $this->purchaseOrderDetails(),
@@ -1875,7 +1879,7 @@ $f->appendXML('<![CDATA[' . $decoded_template . ']]>');
             ['element' => 'div', 'content' => $this->service->html_variables['values']['$client.shipping_address1'], 'show_empty' => false, 'properties' => ['data-ref' => 'shipping_address-client.shipping_address1']],
             ['element' => 'div', 'content' => $this->service->html_variables['values']['$client.shipping_address2'], 'show_empty' => false, 'properties' => ['data-ref' => 'shipping_address-client.shipping_address2']],
             ['element' => 'div', 'content' => "{$this->service->html_variables['values']['$client.shipping_city']} {$this->service->html_variables['values']['$client.shipping_state']} {$this->service->html_variables['values']['$client.shipping_postal_code']}", 'properties' => ['data-ref' => 'shipping_address-client.city_state_postal']],
-            ['element' => 'div', 'content' => optional($this->service->html_variables['values']['$client.shipping_country'])->name, 'show_empty' => false, 'properties' => ['data-ref' => 'shipping_address-client.shipping_country']],
+            ['element' => 'div', 'content' => $this->service->html_variables['values']['$client.shipping_country'], 'show_empty' => false, 'properties' => ['data-ref' => 'shipping_address-client.shipping_country']],
         ];
 
         return $elements;

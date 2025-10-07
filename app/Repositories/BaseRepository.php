@@ -301,7 +301,7 @@ class BaseRepository
             }
 
             if (!$model->design_id) {
-                $model->design_id = intval($this->decodePrimaryKey($client->getSetting('invoice_design_id')));
+                $model->design_id = intval($this->decodePrimaryKey($model->client->getSetting('invoice_design_id')));
             }
 
             //links tasks and expenses back to the invoice, but only if we are not in the middle of a transaction.

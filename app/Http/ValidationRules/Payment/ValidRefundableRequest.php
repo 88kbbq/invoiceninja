@@ -86,12 +86,12 @@ class ValidRefundableRequest implements Rule
             $paymentable_invoice = $payment->invoices->where('id', $invoice->id)->first();
 
             if (! $paymentable_invoice) {
-                $this->error_msg = ctrans('texts.invoice_not_related_to_payment', ['invoice' => $invoice->hashed_id]);
+                $this->error_msg = ctrans('texts.invoice_not_related_to_payment', ['invoice' => $invoice->number]);
 
                 return false;
             }
         } else {
-            $this->error_msg = ctrans('texts.invoice_not_related_to_payment', ['invoice' => $invoice->hashed_id]);
+            $this->error_msg = ctrans('texts.invoice_not_related_to_payment', ['invoice' => $invoice->number]);
 
             return false;
         }

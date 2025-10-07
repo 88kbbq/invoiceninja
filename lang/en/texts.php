@@ -3928,8 +3928,8 @@ $lang = array(
     'invoice_number_taken' => 'Invoice number already taken',
     'payment_id_required' => 'Payment `id` required.',
     'unable_to_retrieve_payment' => 'Unable to retrieve specified payment',
-    'invoice_not_related_to_payment' => 'Invoice id :invoice is not related to this payment',
-    'credit_not_related_to_payment' => 'Credit id :credit is not related to this payment',
+    'invoice_not_related_to_payment' => 'Invoice # :invoice is not related to this payment',
+    'credit_not_related_to_payment' => 'Credit # :credit is not related to this payment',
     'max_refundable_invoice' => 'Attempting to refund more than allowed for invoice id :invoice, maximum refundable amount is :amount',
     'refund_without_invoices' => 'Attempting to refund a payment with invoices attached, please specify valid invoice/s to be refunded.',
     'refund_without_credits' => 'Attempting to refund a payment with credits attached, please specify valid credits/s to be refunded.',
@@ -5631,6 +5631,11 @@ $lang = array(
     'replaced' => 'Replaced',
     'ses_from_address' => 'SES From Address',
     'ses_from_address_help' => 'The Sending Email Address, must be verified in AWS',
+    'unauthorized_action' => 'You are not authorized to perform this action',
+    'einvoice_received_subject' => 'E-Invoice/s Received',
+    'einvoice_received_body' => 'You have received :count new E-Invoice/s.<br><br>Login to view.',
+    'download_files_too_large' => 'Some files were too large to attach directly to the email. Please use the links below to download these individually.',
+
 );
 
 return $lang;

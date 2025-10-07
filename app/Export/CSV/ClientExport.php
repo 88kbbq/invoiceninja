@@ -227,7 +227,7 @@ class ClientExport extends BaseExport
         }
 
         if (in_array('client.assigned_user', $this->input['report_keys'])) {
-            $entity['client.assigned_user'] = $client->assigned_user ? $client->user->present()->name() : '';
+            $entity['client.assigned_user'] = $client->assigned_user ? $client->assigned_user->present()->name() : '';
         }
 
         if (in_array('client.classification', $this->input['report_keys']) && isset($client->classification)) {

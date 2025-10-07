@@ -99,7 +99,7 @@ class InvoiceController extends Controller
     {
         $data = Cache::get($hash);
 
-        for ($x = 0; $x < 3; $x++) {
+        for ($x = 0; $x < 18; $x++) {
 
             $data = Cache::get($hash);
 
@@ -107,7 +107,7 @@ class InvoiceController extends Controller
                 break;
             }
 
-            usleep(300000);
+            usleep(100000);
 
         }
 

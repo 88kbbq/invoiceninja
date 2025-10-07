@@ -358,10 +358,8 @@ class NinjaMailerJob implements ShouldQueue
             return $this;
         }
 
-
         if (Ninja::isHosted() && $this->company->account->isPaid() && $this->nmo->settings->email_sending_method == 'default') {
             //check if outlook.
-
             try {
                 $email = $this->nmo->to_user->email;
                 $domain = explode("@", $email)[1] ?? "";

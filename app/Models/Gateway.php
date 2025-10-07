@@ -25,7 +25,7 @@ namespace App\Models;
  * @property bool $is_offsite
  * @property bool $is_secure
  * @property object|null|string $fields
- * @property string $default_gateway_type_id
+ * @property string|int $default_gateway_type_id
  * @property int|null $created_at
  * @property int|null $updated_at
  * @property-read mixed $options
@@ -231,8 +231,8 @@ class Gateway extends StaticModel
                 return [
                     GatewayType::CRYPTO => ['refund' => true, 'token_billing' => false, 'webhooks' => ['confirmed', 'paid_out', 'failed', 'fulfilled']],
                 ]; //BTCPay
-	    case 63:
-		return [
+            case 63:
+                return [
                     GatewayType::BANK_TRANSFER => [
                         'refund' => false,
                         'token_billing' => true,

@@ -318,7 +318,7 @@ class Credit extends BaseModel
      */
     public function invoice(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(Invoice::class);
+        return $this->belongsTo(Invoice::class)->withTrashed();
     }
 
     /**

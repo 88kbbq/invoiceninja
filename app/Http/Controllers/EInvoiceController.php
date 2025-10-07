@@ -132,9 +132,8 @@ class EInvoiceController extends BaseController
     public function quota(ShowQuotaRequest $request): JsonResponse
     {
         nlog(["quota" => $request->all()]);
-        /**
-         * @var \App\Models\Company
-         */
+        
+        /** @var \App\Models\Company $company */
         $company = auth()->user()->company();
 
         $response = \Illuminate\Support\Facades\Http::baseUrl(config('ninja.hosted_ninja_url'))

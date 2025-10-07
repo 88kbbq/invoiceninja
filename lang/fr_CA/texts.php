@@ -3781,7 +3781,7 @@ Lorsque les montant apparaîtront sur votre relevé, veuillez revenir sur cette 
     'notification_partial_payment_paid' => 'Un paiement partiel de :amount a été fait par le client : pour la facture :invoice',
     'notification_bot' => 'Bot de notifications',
     'invoice_number_placeholder' => 'Facture N° :invoice',
-    'entity_number_placeholder' => ':entity N° :entity_number',
+    'entity_number_placeholder' => ':entity # :entity_number',
     'email_link_not_working' => 'Si le bouton ci-dessus ne fonctionne pas correctement, cliquez sur le lien',
     'display_log' => 'Afficher le registre',
     'send_fail_logs_to_our_server' => 'Signalez les erreurs pour aider à l\'amélioration de l\'application',

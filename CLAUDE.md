@@ -1355,6 +1355,51 @@ git push origin production  # Deploys reverted code
 
 ---
 
-**Last Updated:** October 5, 2025
+## Critical Lessons Learned
+
+### Backup Strategy
+1. **Always backup codebase not on a versioning system**
+   - Server snapshots may have old configuration files (`.env`, etc.)
+   - Keep separate backups of critical files that aren't in git
+   - Store backups in multiple locations (server + local machine)
+   - Example: The November 4th snapshot had old APP_KEY, but `/root/backups/` had the correct one
+
+2. **Maintain a secure credentials document**
+   - Keep a list of ALL passwords, logins, keys, credentials, and sensitive data
+   - Store in a project file that is NOT uploaded to GitHub
+   - Include: APP_KEY, database passwords, API tokens, SSH keys, etc.
+   - Update this file whenever credentials change
+   - Consider using a password manager or encrypted vault
+
+3. **Document encryption keys separately**
+   - Laravel APP_KEY encrypts sensitive database data
+   - If APP_KEY is lost, encrypted data (payment gateways, etc.) becomes unrecoverable
+   - Always backup APP_KEY separately from code
+   - When restoring from snapshots, verify APP_KEY matches what database expects
+
+### Problem-Solving Protocol
+**Keep to the script! If something doesn't work in three attempts:**
+1. Stop trying variations of the same approach
+2. Switch to Claude Opus model for deeper research
+3. Ask Opus to analyze the root cause before attempting fixes
+4. Document findings before implementing solution
+5. Verify assumptions (e.g., check which APP_KEY the database actually uses)
+
+**Example from this incident:**
+- Multiple attempts to fix 500 errors by modifying code/config
+- Should have stopped after 3 attempts and researched APP_KEY encryption
+- Root cause was APP_KEY mismatch from snapshot restore
+- Could have been identified faster with systematic investigation
+
+### Deployment Safety
+- Never overwrite working installations without verified backups
+- Test deployment scripts on non-critical paths first
+- Keep multiple restore points (not just latest snapshot)
+- Verify critical configuration (APP_KEY, DB credentials) after restore
+- Document the known-working state before making changes
+
+---
+
+**Last Updated:** October 7, 2025
 **Maintained By:** Development Team
 **Repository:** https://github.com/88kbbq/invoiceninja
