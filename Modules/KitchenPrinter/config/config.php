@@ -11,7 +11,7 @@ return [
         'timeout' => 10, // seconds
     ],
 
-    'template' => env('KITCHEN_PRINT_TEMPLATE', 'default'),
+    'template' => env('KITCHEN_PRINT_TEMPLATE', 'mC-Print3'),
 
     // Which custom fields to use for event info
     'custom_fields' => [
