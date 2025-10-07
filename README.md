@@ -182,3 +182,4 @@ Invoice Ninja is released under the Elastic License.
 See [LICENSE](LICENSE) for details.# Test GitHub Actions deployment
 # Deployment infrastructure configured
 # Fix bootstrap/cache permissions
+# SnapPDF configured for PDF generation
