@@ -114,11 +114,12 @@ class KitchenPrintFormatter
 
     /**
      * mC-Print3 optimized template (80mm paper, compact layout)
-     * Format: Row 1: Name + Invoice#
+     * Format: Row 0: Invoice number (large)
+     *         Row 1: Contact name (large)
      *         Row 2: Phone
      *         Row 3: Event time + Due date
      *         Row 4: Shipping address
-     *         Items: Product & Quantity (one per row)
+     *         Items: Product & Quantity (one per row, large text)
      */
     protected function renderMcPrint3Template(array $data): string
     {
@@ -126,21 +127,26 @@ class KitchenPrintFormatter
 
         // Paper width setup for 80mm thermal paper
         $markup .= "[papertype: normal; width 80]\n";
-
-        // Row 1: Contact name and invoice number
         $markup .= "[align: left]\n";
-        $name = trim(($data['client_name'] ?? 'Guest'));
-        $invoice = $data['number'] ?? 'N/A';
-        $markup .= "[bold: on]\n";
-        $markup .= "{$name}  #{$invoice}\n";
-        $markup .= "[bold: off]\n";
 
-        // Row 2: Phone number
+        // Row 0: Invoice number (1.5x size, bold)
+        $invoice = $data['number'] ?? 'N/A';
+        $markup .= "[magnify: width 2; height 1]\n";
+        $markup .= "[bold: on]#{$invoice}[bold: off]\n";
+        $markup .= "[magnify: width 1; height 1]\n";
+
+        // Row 1: Contact name (1.5x size, bold)
+        $name = trim(($data['client_name'] ?? 'Guest'));
+        $markup .= "[magnify: width 2; height 1]\n";
+        $markup .= "[bold: on]{$name}[bold: off]\n";
+        $markup .= "[magnify: width 1; height 1]\n";
+
+        // Row 2: Phone number (regular size)
         if (!empty($data['client_phone'])) {
             $markup .= "{$data['client_phone']}\n";
         }
 
-        // Row 3: Event time (custom1) and due date
+        // Row 3: Event time (custom1) and due date (regular size)
         $row3_parts = [];
         if (!empty($data['event_time'])) {
             $row3_parts[] = $data['event_time'];
@@ -152,7 +158,7 @@ class KitchenPrintFormatter
             $markup .= implode('  ', $row3_parts) . "\n";
         }
 
-        // Row 4: Shipping address
+        // Row 4: Shipping address (regular size)
         if (!empty($data['shipping_address'])) {
             $markup .= "{$data['shipping_address']}\n";
         }
@@ -160,16 +166,17 @@ class KitchenPrintFormatter
         // Separator
         $markup .= "--------------------------------\n";
 
-        // Items list: Product and Quantity (one per row)
-        $markup .= "[magnify: width 1; height 1]\n";
+        // Items list: Product and Quantity (1.5x size, bold for qty)
         foreach ($data['items'] as $item) {
             $qty = $item['quantity'];
             $product = $item['product'];
 
-            // Format: "Qty x Product Name"
+            // Format: "Qty x Product Name" (larger text)
+            $markup .= "[magnify: width 2; height 1]\n";
             $markup .= "[bold: on]{$qty}x[bold: off] {$product}\n";
+            $markup .= "[magnify: width 1; height 1]\n";
 
-            // Optional: Show notes indented
+            // Optional: Show notes indented (regular size)
             if (!empty($item['notes']) && $item['notes'] !== $product) {
                 $markup .= "  {$item['notes']}\n";
             }
@@ -178,13 +185,13 @@ class KitchenPrintFormatter
         // Footer
         $markup .= "--------------------------------\n";
 
-        // Optional: Public notes
+        // Optional: Public notes (regular size)
         if (!empty($data['notes'])) {
             $markup .= "Notes: {$data['notes']}\n";
             $markup .= "--------------------------------\n";
         }
 
-        // Print timestamp
+        // Print timestamp (regular size, centered)
         $markup .= "[align: center]\n";
         $markup .= "Printed: {$data['printed_at']}\n\n";
 
