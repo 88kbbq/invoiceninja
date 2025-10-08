@@ -14,41 +14,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup SSH
-        env:
-          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          DROPLET_IP: ${{ secrets.DROPLET_IP }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        run: |
-          # Create SSH directory
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-
-          # Write SSH key
-          echo "$PRIVATE_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-
-          # Add host to known hosts to avoid prompt
-          ssh-keyscan -H "$DROPLET_IP" >> ~/.ssh/known_hosts 2>/dev/null
-
-          # Test SSH connection
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=5 "$DEPLOY_USER@$DROPLET_IP" "echo 'SSH connection successful'"
-
-      - name: Deploy to droplet
-        env:
-          DROPLET_IP: ${{ secrets.DROPLET_IP }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        run: |
-          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DROPLET_IP" "sudo /usr/local/bin/deploy-invoice-ninja.sh"
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "Starting deployment..."
+            sudo /usr/local/bin/deploy-invoice-ninja.sh
+            echo "Deployment script completed with exit code: $?"
 
       - name: Verify deployment
         run: |
-          echo "Waiting 10 seconds for application to start..."
-          sleep 10
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://invoice.88k.com.tw/)
-          if [ "$HTTP_CODE" -eq 200 ]; then
-            echo "✅ Deployment verified successfully (HTTP $HTTP_CODE)"
-          else
-            echo "❌ Deployment verification failed (HTTP $HTTP_CODE)"
-            exit 1
-          fi
+          echo "Waiting 30 seconds for application to start..."
+          sleep 30
+
+          # Try up to 5 times with 10 second intervals
+          for i in {1..5}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://invoice.88k.com.tw/)
+            if [ "$HTTP_CODE" -eq 200 ]; then
+              echo "✅ Deployment verified successfully (HTTP $HTTP_CODE)"
+              exit 0
+            fi
+            echo "Attempt $i: Deployment not ready (HTTP $HTTP_CODE), retrying in 10s..."
+            sleep 10
+          done
+
+          echo "❌ Deployment verification failed after retries"
+          exit 1
