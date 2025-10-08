@@ -15,6 +15,8 @@ Route::prefix('v1')->group(function () {
         ->name('kitchen.cloudprnt.poll');
     Route::post('kitchen/cloudprnt', [KitchenPrintController::class, 'cloudprntStatus'])
         ->name('kitchen.cloudprnt.status');
+    Route::get('kitchen/test-job', [KitchenPrintController::class, 'queueTestJob'])
+        ->name('kitchen.test.job');
 });
 
 Route::middleware(['api_db', 'token_auth', 'locale'])
