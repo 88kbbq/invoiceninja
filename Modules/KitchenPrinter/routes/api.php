@@ -17,6 +17,10 @@ Route::middleware(['api_db', 'token_auth', 'locale'])
         Route::get('kitchen/test-connection', [KitchenPrintController::class, 'testConnection'])
             ->name('kitchen.test.connection');
 
+        // Test print
+        Route::post('kitchen/test-print', [KitchenPrintController::class, 'testPrint'])
+            ->name('kitchen.test.print');
+
         // Single invoice/quote print
         Route::post('invoices/{invoice}/print_kitchen', [KitchenPrintController::class, 'printInvoice'])
             ->name('kitchen.print.invoice');

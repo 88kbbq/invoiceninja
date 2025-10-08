@@ -2,13 +2,14 @@
 
 return [
     'name' => 'KitchenPrinter',
-    
+
     'enabled' => env('KITCHEN_PRINTER_ENABLED', false),
 
-    'cloudprnt' => [
-        'url' => env('CLOUDPRNT_URL', ''),
-        'mac_address' => env('CLOUDPRNT_MAC', ''),
-        'timeout' => 10, // seconds
+    // TCP/IP Direct printing configuration
+    'tcp' => [
+        'ip' => env('KITCHEN_PRINTER_IP', ''),
+        'port' => env('KITCHEN_PRINTER_PORT', 9100),
+        'timeout' => env('KITCHEN_PRINTER_TIMEOUT', 5), // seconds
     ],
 
     'template' => env('KITCHEN_PRINT_TEMPLATE', 'mC-Print3'),

@@ -171,17 +171,53 @@ class KitchenPrintController extends Controller
             if ($connected) {
                 return response()->json([
                     'message' => 'Printer connection successful',
-                    'printer_url' => config('kitchenprinter.cloudprnt.url'),
+                    'printer_ip' => config('kitchenprinter.tcp.ip'),
+                    'printer_port' => config('kitchenprinter.tcp.port'),
                 ], 200);
             } else {
                 return response()->json([
                     'message' => 'Could not connect to printer',
-                    'printer_url' => config('kitchenprinter.cloudprnt.url'),
+                    'printer_ip' => config('kitchenprinter.tcp.ip'),
+                    'printer_port' => config('kitchenprinter.tcp.port'),
                 ], 500);
             }
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Printer connection failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function testPrint()
+    {
+        try {
+            // Create simple test receipt
+            $markup = "[magnify: width 2; height 2]\n";
+            $markup .= "[align: center]\n";
+            $markup .= "*** TEST PRINT ***\n";
+            $markup .= "[magnify: width 1; height 1]\n";
+            $markup .= "[align: left]\n\n";
+            $markup .= "Invoice Ninja Kitchen Printer\n";
+            $markup .= "TCP/IP Direct Printing\n";
+            $markup .= "IP: " . config('kitchenprinter.tcp.ip') . "\n";
+            $markup .= "Port: " . config('kitchenprinter.tcp.port') . "\n";
+            $markup .= "Time: " . now()->format('Y-m-d H:i:s') . "\n";
+            $markup .= "\n";
+            $markup .= "If you see this, printing works!\n";
+            $markup .= "\n\n\n";
+            $markup .= "[cut: feed; partial]\n";
+
+            $result = $this->cloudPRNT->print($markup);
+
+            return response()->json([
+                'message' => 'Test print sent successfully',
+                'job_id' => $result['job_id'] ?? null,
+                'printer_ip' => config('kitchenprinter.tcp.ip'),
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Test print failed: ' . $e->getMessage(),
             ], 500);
         }
     }

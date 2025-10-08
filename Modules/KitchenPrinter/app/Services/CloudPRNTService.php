@@ -2,22 +2,22 @@
 
 namespace Modules\KitchenPrinter\Services;
 
-use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class CloudPRNTService
 {
-    protected Client $httpClient;
-    protected string $printerUrl;
-    protected string $printerMac;
+    protected string $printerIp;
+    protected int $printerPort;
     protected bool $enabled;
+    protected int $timeout;
 
     public function __construct()
     {
-        $this->httpClient = new Client(['timeout' => 10]);
-        $this->printerUrl = config('kitchenprinter.cloudprnt.url', '');
-        $this->printerMac = config('kitchenprinter.cloudprnt.mac_address', '');
+        $this->printerIp = config('kitchenprinter.tcp.ip', '');
+        $this->printerPort = config('kitchenprinter.tcp.port', 9100);
         $this->enabled = config('kitchenprinter.enabled', false);
+        $this->timeout = config('kitchenprinter.tcp.timeout', 5);
     }
 
     public function print(string $starMarkup): array
@@ -26,36 +26,29 @@ class CloudPRNTService
             throw new \Exception('Kitchen printer is disabled. Set KITCHEN_PRINTER_ENABLED=true in .env');
         }
 
-        if (empty($this->printerUrl)) {
-            throw new \Exception('Printer URL not configured. Set CLOUDPRNT_URL in .env');
+        if (empty($this->printerIp)) {
+            throw new \Exception('Printer IP not configured. Set KITCHEN_PRINTER_IP in .env');
         }
 
+        $jobId = 'job_' . Str::random(16);
+
         try {
-            // CloudPRNT Protocol: POST print job
-            $response = $this->httpClient->post($this->printerUrl, [
-                'json' => [
-                    'jobReady' => true,
-                    'mediaTypes' => ['application/vnd.star.markup'],
-                ],
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json',
-                ],
-            ]);
+            // Open TCP socket to printer on port 9100
+            $socket = @fsockopen($this->printerIp, $this->printerPort, $errno, $errstr, $this->timeout);
 
-            $jobId = $response->getHeaderLine('X-Star-Job-Id');
+            if (!$socket) {
+                throw new \Exception("Failed to connect to printer at {$this->printerIp}:{$this->printerPort} - $errstr ($errno)");
+            }
 
-            // Upload print data
-            $uploadResponse = $this->httpClient->post($this->printerUrl . '/'. $jobId, [
-                'body' => $starMarkup,
-                'headers' => [
-                    'Content-Type' => 'application/vnd.star.markup',
-                ],
-            ]);
+            // Send Star Document Markup directly to printer
+            fwrite($socket, $starMarkup);
+            fflush($socket);
+            fclose($socket);
 
-            Log::info('Kitchen print job sent', [
+            Log::info('Kitchen print job sent via TCP/IP', [
                 'job_id' => $jobId,
-                'printer_mac' => $this->printerMac,
+                'printer_ip' => $this->printerIp,
+                'printer_port' => $this->printerPort,
             ]);
 
             return [
@@ -66,7 +59,8 @@ class CloudPRNTService
         } catch (\Exception $e) {
             Log::error('Kitchen print failed', [
                 'error' => $e->getMessage(),
-                'printer_url' => $this->printerUrl,
+                'printer_ip' => $this->printerIp,
+                'printer_port' => $this->printerPort,
             ]);
 
             throw $e;
@@ -75,9 +69,20 @@ class CloudPRNTService
 
     public function testConnection(): bool
     {
+        if (!$this->enabled || empty($this->printerIp)) {
+            return false;
+        }
+
         try {
-            $response = $this->httpClient->get($this->printerUrl);
-            return $response->getStatusCode() === 200;
+            // Try to open socket to printer
+            $socket = @fsockopen($this->printerIp, $this->printerPort, $errno, $errstr, 2);
+
+            if ($socket) {
+                fclose($socket);
+                return true;
+            }
+
+            return false;
         } catch (\Exception $e) {
             return false;
         }
