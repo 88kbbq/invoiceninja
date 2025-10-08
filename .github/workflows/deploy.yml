@@ -25,7 +25,14 @@ jobs:
 
       - name: Deploy to droplet
         run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DROPLET_IP }} "sudo /usr/local/bin/deploy-invoice-ninja.sh"
+          echo "Starting deployment to droplet..."
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DROPLET_IP }} "sudo /usr/local/bin/deploy-invoice-ninja.sh" 2>&1
+          DEPLOY_EXIT_CODE=$?
+          echo "Deployment script exit code: $DEPLOY_EXIT_CODE"
+          if [ $DEPLOY_EXIT_CODE -ne 0 ]; then
+            echo "Deployment failed with exit code $DEPLOY_EXIT_CODE"
+            exit $DEPLOY_EXIT_CODE
+          fi
 
       - name: Verify deployment
         run: |
