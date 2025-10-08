@@ -24,8 +24,6 @@ jobs:
           ssh-keyscan -H ${{ secrets.DROPLET_IP }} >> ~/.ssh/known_hosts
 
       - name: Deploy to droplet
-        env:
-          SSH_AUTH_SOCK: ${{ env.SSH_AUTH_SOCK }}
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DROPLET_IP }} "sudo /usr/local/bin/deploy-invoice-ninja.sh"
 
@@ -39,11 +37,4 @@ jobs:
           else
             echo "❌ Deployment verification failed (HTTP $HTTP_CODE)"
             exit 1
-          fi
-
-      - name: Cleanup SSH agent
-        if: always()
-        run: |
-          if [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then
-            ssh-agent -k || true
           fi
