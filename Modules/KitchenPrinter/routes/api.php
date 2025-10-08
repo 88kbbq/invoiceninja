@@ -9,10 +9,18 @@ use Modules\KitchenPrinter\Http\Controllers\KitchenPrintController;
 |--------------------------------------------------------------------------
 */
 
+// CloudPRNT endpoint (no auth - printer polls this)
+Route::prefix('v1')->group(function () {
+    Route::get('kitchen/cloudprnt', [KitchenPrintController::class, 'cloudprntPoll'])
+        ->name('kitchen.cloudprnt.poll');
+    Route::post('kitchen/cloudprnt', [KitchenPrintController::class, 'cloudprntStatus'])
+        ->name('kitchen.cloudprnt.status');
+});
+
 Route::middleware(['api_db', 'token_auth', 'locale'])
     ->prefix('v1')
     ->group(function () {
-        
+
         // Test printer connection
         Route::get('kitchen/test-connection', [KitchenPrintController::class, 'testConnection'])
             ->name('kitchen.test.connection');

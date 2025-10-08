@@ -9,6 +9,8 @@ use Modules\KitchenPrinter\Services\CloudPRNTService;
 use Modules\KitchenPrinter\Services\KitchenPrintFormatter;
 use Modules\KitchenPrinter\Http\Requests\PrintKitchenRequest;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Http\Request;
 
 class KitchenPrintController extends Controller
 {
@@ -167,7 +169,7 @@ class KitchenPrintController extends Controller
     {
         try {
             $connected = $this->cloudPRNT->testConnection();
-            
+
             if ($connected) {
                 return response()->json([
                     'message' => 'Printer connection successful',
@@ -184,5 +186,54 @@ class KitchenPrintController extends Controller
                 'message' => 'Printer connection failed: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * CloudPRNT polling endpoint - printer polls this to get print jobs
+     */
+    public function cloudprntPoll(Request $request)
+    {
+        // Get printer MAC address from request
+        $mac = $request->header('X-Star-Mac') ?? config('kitchenprinter.cloudprnt.mac_address');
+
+        // Log printer poll
+        Log::debug('CloudPRNT poll', [
+            'mac' => $mac,
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        // Check if there are pending print jobs in cache
+        $jobData = Cache::get("cloudprnt_job_{$mac}");
+
+        if ($jobData) {
+            // Remove job from cache
+            Cache::forget("cloudprnt_job_{$mac}");
+
+            // Return print job
+            return response($jobData)
+                ->header('Content-Type', 'text/plain; charset=utf-8')
+                ->header('Content-Disposition', 'inline; filename="job.stm"');
+        }
+
+        // No jobs available
+        return response('', 204);
+    }
+
+    /**
+     * CloudPRNT status endpoint - printer reports job status
+     */
+    public function cloudprntStatus(Request $request)
+    {
+        $mac = $request->header('X-Star-Mac') ?? config('kitchenprinter.cloudprnt.mac_address');
+        $statusCode = $request->input('code');
+        $jobId = $request->input('jobToken');
+
+        Log::info('CloudPRNT status update', [
+            'mac' => $mac,
+            'status_code' => $statusCode,
+            'job_id' => $jobId,
+        ]);
+
+        return response('', 200);
     }
 }

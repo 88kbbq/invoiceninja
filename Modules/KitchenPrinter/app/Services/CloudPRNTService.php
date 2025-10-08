@@ -4,6 +4,8 @@ namespace Modules\KitchenPrinter\Services;
 
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class CloudPRNTService
 {
@@ -26,51 +28,27 @@ class CloudPRNTService
             throw new \Exception('Kitchen printer is disabled. Set KITCHEN_PRINTER_ENABLED=true in .env');
         }
 
-        if (empty($this->printerUrl)) {
-            throw new \Exception('Printer URL not configured. Set CLOUDPRNT_URL in .env');
+        if (empty($this->printerMac)) {
+            throw new \Exception('Printer MAC address not configured. Set CLOUDPRNT_MAC in .env');
         }
 
-        try {
-            // CloudPRNT Protocol: POST print job
-            $response = $this->httpClient->post($this->printerUrl, [
-                'json' => [
-                    'jobReady' => true,
-                    'mediaTypes' => ['application/vnd.star.markup'],
-                ],
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json',
-                ],
-            ]);
+        // Generate unique job ID
+        $jobId = 'job_' . Str::random(16);
 
-            $jobId = $response->getHeaderLine('X-Star-Job-Id');
+        // Store print job in cache for printer to poll
+        // Jobs expire after 5 minutes if not picked up
+        Cache::put("cloudprnt_job_{$this->printerMac}", $starMarkup, now()->addMinutes(5));
 
-            // Upload print data
-            $uploadResponse = $this->httpClient->post($this->printerUrl . '/'. $jobId, [
-                'body' => $starMarkup,
-                'headers' => [
-                    'Content-Type' => 'application/vnd.star.markup',
-                ],
-            ]);
+        Log::info('Kitchen print job queued', [
+            'job_id' => $jobId,
+            'printer_mac' => $this->printerMac,
+            'markup_length' => strlen($starMarkup),
+        ]);
 
-            Log::info('Kitchen print job sent', [
-                'job_id' => $jobId,
-                'printer_mac' => $this->printerMac,
-            ]);
-
-            return [
-                'success' => true,
-                'job_id' => $jobId,
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Kitchen print failed', [
-                'error' => $e->getMessage(),
-                'printer_url' => $this->printerUrl,
-            ]);
-
-            throw $e;
-        }
+        return [
+            'success' => true,
+            'job_id' => $jobId,
+        ];
     }
 
     public function testConnection(): bool
