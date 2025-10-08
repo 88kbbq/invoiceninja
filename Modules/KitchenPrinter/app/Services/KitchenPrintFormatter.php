@@ -28,7 +28,7 @@ class KitchenPrintFormatter
     protected function prepareInvoiceData(Invoice $invoice): array
     {
         $include = config('kitchenprinter.include', []);
-        
+
         return [
             'type' => 'INVOICE',
             'number' => $invoice->number,
@@ -37,6 +37,7 @@ class KitchenPrintFormatter
             'event_date' => $include['event_time'] ? $invoice->custom_value2 : null,
             'client_name' => $include['client_name'] ? $invoice->client->name : null,
             'client_phone' => $include['client_phone'] ? $invoice->client->phone : null,
+            'shipping_address' => $this->formatShippingAddress($invoice->client),
             'items' => $this->formatLineItems($invoice->line_items),
             'notes' => $include['public_notes'] ? $invoice->public_notes : null,
             'printed_at' => now()->format('Y-m-d H:i:s'),
@@ -46,7 +47,7 @@ class KitchenPrintFormatter
     protected function prepareQuoteData(Quote $quote): array
     {
         $include = config('kitchenprinter.include', []);
-        
+
         return [
             'type' => 'QUOTE',
             'number' => $quote->number,
@@ -55,6 +56,7 @@ class KitchenPrintFormatter
             'event_date' => $include['event_time'] ? $quote->custom_value2 : null,
             'client_name' => $include['client_name'] ? $quote->client->name : null,
             'client_phone' => $include['client_phone'] ? $quote->client->phone : null,
+            'shipping_address' => $this->formatShippingAddress($quote->client),
             'items' => $this->formatLineItems($quote->line_items),
             'notes' => $include['public_notes'] ? $quote->public_notes : null,
             'printed_at' => now()->format('Y-m-d H:i:s'),
@@ -64,7 +66,7 @@ class KitchenPrintFormatter
     protected function formatLineItems($lineItems): array
     {
         $items = [];
-        
+
         foreach ($lineItems as $item) {
             $items[] = [
                 'product' => $item->product_key ?: $item->notes,
@@ -72,14 +74,130 @@ class KitchenPrintFormatter
                 'notes' => $item->notes,
             ];
         }
-        
+
         return $items;
+    }
+
+    protected function formatShippingAddress($client): ?string
+    {
+        if (!$client) {
+            return null;
+        }
+
+        $parts = array_filter([
+            $client->shipping_address1,
+            $client->shipping_address2,
+            $client->shipping_city,
+            $client->shipping_state,
+            $client->shipping_postal_code,
+        ]);
+
+        return !empty($parts) ? implode(', ', $parts) : null;
     }
 
     /**
      * Generate Star Document Markup for thermal printer
+     * Template optimized for Star mC-Print3 (80mm paper width)
      */
     protected function renderStarMarkup(array $data): string
+    {
+        $template = config('kitchenprinter.template', 'default');
+
+        // Use mC-Print3 optimized template
+        if ($template === 'mC-Print3') {
+            return $this->renderMcPrint3Template($data);
+        }
+
+        // Default/fallback template
+        return $this->renderDefaultTemplate($data);
+    }
+
+    /**
+     * mC-Print3 optimized template (80mm paper, compact layout)
+     * Format: Row 1: Name + Invoice#
+     *         Row 2: Phone
+     *         Row 3: Event time + Due date
+     *         Row 4: Shipping address
+     *         Items: Product & Quantity (one per row)
+     */
+    protected function renderMcPrint3Template(array $data): string
+    {
+        $markup = "";
+
+        // Paper width setup for 80mm thermal paper
+        $markup .= "[papertype: normal; width 80]\n";
+
+        // Row 1: Contact name and invoice number
+        $markup .= "[align: left]\n";
+        $name = trim(($data['client_name'] ?? 'Guest'));
+        $invoice = $data['number'] ?? 'N/A';
+        $markup .= "[bold: on]\n";
+        $markup .= "{$name}  #{$invoice}\n";
+        $markup .= "[bold: off]\n";
+
+        // Row 2: Phone number
+        if (!empty($data['client_phone'])) {
+            $markup .= "{$data['client_phone']}\n";
+        }
+
+        // Row 3: Event time (custom1) and due date
+        $row3_parts = [];
+        if (!empty($data['event_time'])) {
+            $row3_parts[] = $data['event_time'];
+        }
+        if (!empty($data['due_date'])) {
+            $row3_parts[] = "Due: {$data['due_date']}";
+        }
+        if (!empty($row3_parts)) {
+            $markup .= implode('  ', $row3_parts) . "\n";
+        }
+
+        // Row 4: Shipping address
+        if (!empty($data['shipping_address'])) {
+            $markup .= "{$data['shipping_address']}\n";
+        }
+
+        // Separator
+        $markup .= "--------------------------------\n";
+
+        // Items list: Product and Quantity (one per row)
+        $markup .= "[magnify: width 1; height 1]\n";
+        foreach ($data['items'] as $item) {
+            $qty = $item['quantity'];
+            $product = $item['product'];
+
+            // Format: "Qty x Product Name"
+            $markup .= "[bold: on]{$qty}x[bold: off] {$product}\n";
+
+            // Optional: Show notes indented
+            if (!empty($item['notes']) && $item['notes'] !== $product) {
+                $markup .= "  {$item['notes']}\n";
+            }
+        }
+
+        // Footer
+        $markup .= "--------------------------------\n";
+
+        // Optional: Public notes
+        if (!empty($data['notes'])) {
+            $markup .= "Notes: {$data['notes']}\n";
+            $markup .= "--------------------------------\n";
+        }
+
+        // Print timestamp
+        $markup .= "[align: center]\n";
+        $markup .= "Printed: {$data['printed_at']}\n\n";
+
+        // Cut paper
+        $markup .= "[cut: feed; partial]\n";
+
+        return $markup;
+    }
+
+    /**
+     * Default/legacy template for backwards compatibility
+     */
+    protected function renderDefaultTemplate(array $data): string
     {
         $markup = "[magnify: width 2; height 2]\n";
         $markup .= "[align: center]\n";
@@ -104,7 +222,7 @@ class KitchenPrintFormatter
         }
 
         $markup .= "--------------------------------\n";
-        
+
         if (!empty($data['client_name'])) {
             $markup .= "Customer: {$data['client_name']}\n";
         }
