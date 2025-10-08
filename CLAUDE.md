@@ -2,13 +2,30 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ CRITICAL - SERVER IDENTIFICATION
+
+**THIS PROJECT USES ONLY THE FOLLOWING SERVERS:**
+
+- **Production Droplet:** 128.199.146.209 (invoice.88k.com.tw)
+- **Database:** Managed MySQL (dbaas-db-9899155)
+- **DO NOT TOUCH:** Any other Digital Ocean apps or servers on this account
+
+**NEVER interact with, deploy to, or test against:**
+- bbq-wolf-app (ac1d9c73-4d5f-4ba7-bb72-186cef914720) - This is a separate Payload CMS project
+- Any other apps shown in `doctl apps list`
+
+**ONLY work with the droplet at 128.199.146.209 for this Invoice Ninja project.**
+
+---
+
 ## Project Overview
 
 This is a **customized fork** of Invoice Ninja v5 with the KitchenPrinter module for Star mC-Print3 thermal printer integration.
 
 - **Upstream Repository:** https://github.com/invoiceninja/invoiceninja
 - **Our Fork:** https://github.com/88kbbq/invoiceninja
-- **Production Branch:** `production` (auto-deploys to Digital Ocean App Platform)
+- **Production Branch:** `production` (auto-deploys to droplet 128.199.146.209)
+- **Production URL:** https://invoice.88k.com.tw
 - **Invoice Ninja Version:** v5.12.28+
 - **Framework:** Laravel 11.46+
 - **PHP Version:** 8.2+
