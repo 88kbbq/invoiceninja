@@ -23,27 +23,9 @@ jobs:
         run: |
           ssh-keyscan -H ${{ secrets.DROPLET_IP }} >> ~/.ssh/known_hosts
 
-      - name: Test SSH connection
-        run: |
-          echo "Testing SSH connection to droplet..."
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DROPLET_IP }} "echo 'SSH connection successful'; whoami; pwd"
-
-      - name: Check deployment script
-        run: |
-          echo "Checking if deployment script exists..."
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DROPLET_IP }} "ls -la /usr/local/bin/deploy-invoice-ninja.sh || echo 'Deployment script not found'"
-
       - name: Deploy to droplet
         run: |
-          set -x
-          echo "Starting deployment to droplet..."
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DROPLET_IP }} "sudo bash -x /usr/local/bin/deploy-invoice-ninja.sh" 2>&1
-          DEPLOY_EXIT_CODE=$?
-          echo "Deployment script exit code: $DEPLOY_EXIT_CODE"
-          if [ $DEPLOY_EXIT_CODE -ne 0 ]; then
-            echo "Deployment failed with exit code $DEPLOY_EXIT_CODE"
-            exit $DEPLOY_EXIT_CODE
-          fi
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DROPLET_IP }} "sudo /usr/local/bin/deploy-invoice-ninja.sh"
 
       - name: Verify deployment
         run: |

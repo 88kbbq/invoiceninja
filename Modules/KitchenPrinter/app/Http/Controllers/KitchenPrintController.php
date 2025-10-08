@@ -237,31 +237,4 @@ class KitchenPrintController extends Controller
         return response('', 200);
     }
 
-    /**
-     * Queue a test print job (for testing)
-     */
-    public function queueTestJob(Request $request)
-    {
-        $mac = config('kitchenprinter.cloudprnt.mac_address');
-
-        // Create simple Star Document Markup test
-        $markup = "[magnify: width 2; height 2]\n";
-        $markup .= "[align: center]\n";
-        $markup .= "HELLO WORLD\n";
-        $markup .= "[magnify: width 1; height 1]\n";
-        $markup .= "[align: left]\n";
-        $markup .= "Test print from Invoice Ninja\n";
-        $markup .= now()->format('Y-m-d H:i:s') . "\n\n\n";
-        $markup .= "[cut: feed; partial]\n";
-
-        // Queue the job
-        Cache::put("cloudprnt_job_{$mac}", $markup, now()->addMinutes(5));
-
-        Log::info('Test print job queued', ['mac' => $mac]);
-
-        return response()->json([
-            'message' => 'Test job queued. Printer should pick it up on next poll.',
-            'mac' => $mac,
-        ]);
-    }
 }
