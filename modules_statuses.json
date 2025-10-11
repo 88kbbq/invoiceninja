@@ -1,5 +1,4 @@
 {
     "Admin": true,
-    "Accounting": false,
-    "KitchenPrinter": true
+    "Accounting": false
 }
