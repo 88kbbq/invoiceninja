@@ -28,7 +28,6 @@ use App\Http\Controllers\DesignController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FilterController;
 use App\Http\Controllers\ImportController;
-use App\Http\Controllers\KitchenPrinterController;
 use App\Http\Controllers\LogoutController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\StaticController;
@@ -284,6 +283,9 @@ Route::group(['middleware' => ['throttle:api', 'token_auth', 'valid_json','local
     Route::get('invoice/{invitation_key}/download_e_invoice', [InvoiceController::class, 'downloadEInvoice'])->name('invoices.downloadEInvoice');
     Route::post('invoices/bulk', [InvoiceController::class, 'bulk'])->name('invoices.bulk');
     Route::post('invoices/update_reminders', [InvoiceController::class, 'update_reminders'])->name('invoices.update_reminders');
+    Route::post('invoices/{invoice}/print_kitchen', [\App\Http\Controllers\KitchenPrinterController::class, 'print'])->name('invoices.print_kitchen');
+    Route::get('kitchen/test-connection', [\App\Http\Controllers\KitchenPrinterController::class, 'testConnection'])->name('kitchen.test_connection');
+    Route::get('kitchen/test-print', [\App\Http\Controllers\KitchenPrinterController::class, 'testPrint'])->name('kitchen.test_print');
 
     Route::resource('locations', LocationController::class); // name = (locations. index / create / show / update / destroy / edit
     Route::post('locations/bulk', [LocationController::class, 'bulk'])->name('locations.bulk');
@@ -302,11 +304,6 @@ Route::group(['middleware' => ['throttle:api', 'token_auth', 'valid_json','local
     Route::post('payments/refund', [PaymentController::class, 'refund'])->name('payments.refund');
     Route::post('payments/bulk', [PaymentController::class, 'bulk'])->name('payments.bulk');
     Route::put('payments/{payment}/upload', [PaymentController::class, 'upload']);
-
-    // Kitchen Printer Routes
-    Route::get('kitchen/test-connection', [KitchenPrinterController::class, 'testConnection'])->name('kitchen.test-connection');
-    Route::get('kitchen/test-print', [KitchenPrinterController::class, 'testPrint'])->name('kitchen.test-print');
-    Route::post('kitchen/print/{invoice}', [KitchenPrinterController::class, 'print'])->name('kitchen.print');
 
     Route::resource('payment_terms', PaymentTermController::class); // name = (payments. index / create / show / update / destroy / edit
     Route::post('payment_terms/bulk', [PaymentTermController::class, 'bulk'])->name('payment_terms.bulk');
@@ -517,3 +514,4 @@ Route::get('/health', function () {
         'message' => 'API is healthy',
     ]);
 })->middleware('throttle:20,1');
+
