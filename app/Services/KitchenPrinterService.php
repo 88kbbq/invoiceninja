@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Invoice;
 use App\Models\Quote;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 use Exception;
 
 class KitchenPrinterService
@@ -86,7 +87,7 @@ class KitchenPrinterService
 
         // Invoice details
         $receipt .= "Order #: " . $invoice->number . "\n";
-        $receipt .= "Date: " . $invoice->date->format('Y-m-d H:i') . "\n";
+        $receipt .= "Date: " . Carbon::parse($invoice->date)->format('Y-m-d H:i') . "\n";
 
         // Check for custom event time/date fields
         if ($invoice->custom_value1) {
@@ -181,7 +182,7 @@ class KitchenPrinterService
 
         // Quote details
         $receipt .= "Quote #: " . $quote->number . "\n";
-        $receipt .= "Date: " . $quote->date->format('Y-m-d H:i') . "\n";
+        $receipt .= "Date: " . Carbon::parse($quote->date)->format('Y-m-d H:i') . "\n";
         $receipt .= "\n";
 
         // Client info
