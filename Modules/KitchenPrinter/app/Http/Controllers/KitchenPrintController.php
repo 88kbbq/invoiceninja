@@ -5,6 +5,7 @@ namespace Modules\KitchenPrinter\Http\Controllers;
 use App\Models\Invoice;
 use App\Models\Quote;
 use App\Http\Controllers\Controller;
+use App\Utils\Traits\MakesHash;
 use Modules\KitchenPrinter\Services\CloudPRNTService;
 use Modules\KitchenPrinter\Services\KitchenPrintFormatter;
 use Modules\KitchenPrinter\Http\Requests\PrintKitchenRequest;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 
 class KitchenPrintController extends Controller
 {
+    use MakesHash;
     protected CloudPRNTService $cloudPRNT;
     protected KitchenPrintFormatter $formatter;
 
@@ -23,9 +25,16 @@ class KitchenPrintController extends Controller
         $this->formatter = $formatter;
     }
 
-    public function printInvoice(PrintKitchenRequest $request, Invoice $invoice)
+    public function printInvoice(PrintKitchenRequest $request, $invoice)
     {
         try {
+            // Resolve invoice by hashed ID
+            if (!$invoice instanceof Invoice) {
+                $invoice = Invoice::where('id', $this->decodePrimaryKey($invoice))
+                    ->withTrashed()
+                    ->firstOrFail();
+            }
+
             // Check permissions
             if (!auth()->user()->can('view', $invoice)) {
                 return response()->json([
@@ -65,9 +74,16 @@ class KitchenPrintController extends Controller
         }
     }
 
-    public function printQuote(PrintKitchenRequest $request, Quote $quote)
+    public function printQuote(PrintKitchenRequest $request, $quote)
     {
         try {
+            // Resolve quote by hashed ID
+            if (!$quote instanceof Quote) {
+                $quote = Quote::where('id', $this->decodePrimaryKey($quote))
+                    ->withTrashed()
+                    ->firstOrFail();
+            }
+
             // Check permissions
             if (!auth()->user()->can('view', $quote)) {
                 return response()->json([
