@@ -275,17 +275,18 @@ Route::group(['middleware' => ['throttle:api', 'token_auth', 'valid_json','local
     
     Route::resource('invoices', InvoiceController::class); // name = (invoices. index / create / show / update / destroy / edit
     Route::get('invoices/{invoice}/delivery_note', [InvoiceController::class, 'deliveryNote'])->name('invoices.delivery_note');
-    Route::get('invoices/{invoice}/{action}', [InvoiceController::class, 'action'])->name('invoices.action');
-    Route::put('invoices/{invoice}/upload', [InvoiceController::class, 'upload'])->name('invoices.upload');
-    Route::post('invoices/{invoice}/payment_schedule', [InvoiceController::class, 'paymentSchedule'])->name('invoices.payment_schedule');
-    Route::delete('invoices/{invoice}/payment_schedule', [InvoiceController::class, 'deletePaymentSchedule'])->name('invoices.delete_payment_schedule');
 
-    // Kitchen Printer Routes
+    // Kitchen Printer Routes - MUST come before {action} wildcard route
     Route::post('invoices/{invoice}/print_kitchen', [App\Http\Controllers\KitchenPrinterController::class, 'printInvoice'])->name('invoices.print_kitchen');
     Route::post('invoices/bulk_print_kitchen', [App\Http\Controllers\KitchenPrinterController::class, 'bulkPrintInvoices'])->name('invoices.bulk_print_kitchen');
     Route::post('quotes/{quote}/print_kitchen', [App\Http\Controllers\KitchenPrinterController::class, 'printQuote'])->name('quotes.print_kitchen');
     Route::get('kitchen/test-connection', [App\Http\Controllers\KitchenPrinterController::class, 'testConnection'])->name('kitchen.test_connection');
     Route::get('kitchen/test-print', [App\Http\Controllers\KitchenPrinterController::class, 'testPrint'])->name('kitchen.test_print');
+
+    Route::get('invoices/{invoice}/{action}', [InvoiceController::class, 'action'])->name('invoices.action');
+    Route::put('invoices/{invoice}/upload', [InvoiceController::class, 'upload'])->name('invoices.upload');
+    Route::post('invoices/{invoice}/payment_schedule', [InvoiceController::class, 'paymentSchedule'])->name('invoices.payment_schedule');
+    Route::delete('invoices/{invoice}/payment_schedule', [InvoiceController::class, 'deletePaymentSchedule'])->name('invoices.delete_payment_schedule');
 
     Route::get('invoice/{invitation_key}/download', [InvoiceController::class, 'downloadPdf'])->name('invoices.downloadPdf');
     Route::get('invoice/{invitation_key}/download_e_invoice', [InvoiceController::class, 'downloadEInvoice'])->name('invoices.downloadEInvoice');
