@@ -1372,6 +1372,174 @@ git push origin production  # Deploys reverted code
 
 ---
 
+## React UI Deployment
+
+### Overview
+
+The Invoice Ninja admin interface uses a React frontend (invoiceninja-ui) that is built separately and deployed to the Laravel backend's `public/` directory.
+
+**Repository Structure:**
+```
+~/InvoiceNinja/
+├── invoiceninja-ui/        # React frontend (separate repo)
+│   ├── src/                # React source code
+│   ├── dist/               # Build output (gitignored)
+│   └── scripts/            # Build automation scripts
+└── invoiceninja-fork/      # Laravel backend (main repo)
+    ├── public/react/       # React bundles (gitignored)
+    └── resources/views/react/
+        └── head.blade.php  # Blade template that loads React bundles
+```
+
+### The Bundle Hash Problem
+
+When Vite builds the React application, it generates bundle files with content-based hashes for cache busting:
+- CSS: `index-BDngorsm.css`
+- JS: `index-CukD1lb6.js`
+
+These hashes **change every time the bundle content changes**. The Laravel backend needs to reference these files in a Blade template at `resources/views/react/head.blade.php`.
+
+**The Issue:**
+- React bundles are gitignored (`public/react` in `.gitignore`)
+- Blade template IS committed to git
+- If bundle hashes don't match, the app loads 404 or old JavaScript
+- This causes subtle bugs where React code doesn't match backend expectations
+
+### Automated Solution
+
+We've created an automated post-build script that syncs bundle hashes.
+
+**Script Location:** `invoiceninja-ui/scripts/update-blade-template.js`
+
+**What It Does:**
+1. Reads `dist/index.html` after Vite build
+2. Extracts CSS and JS bundle hashes
+3. Generates proper Blade syntax with `{{ asset() }}` helpers
+4. Writes to `invoiceninja-fork/resources/views/react/head.blade.php`
+
+**Automatic Execution:**
+The script runs automatically after `npm run build`:
+
+```json
+{
+  "scripts": {
+    "build": "tsc && vite build && node scripts/update-blade-template.js"
+  }
+}
+```
+
+### Deployment Workflow
+
+**1. Build React UI**
+```bash
+cd ~/InvoiceNinja/invoiceninja-ui
+npm run build
+# Script automatically updates ../invoiceninja-fork/resources/views/react/head.blade.php
+```
+
+**2. Copy Build Files**
+```bash
+# Copy React bundles to Laravel public directory
+cp -r dist/react ../invoiceninja-fork/public/
+cp dist/index.html ../invoiceninja-fork/public/
+```
+
+**3. Commit Both Repos**
+```bash
+# Commit UI changes
+cd ~/InvoiceNinja/invoiceninja-ui
+git add .
+git commit -m "Update React UI: [description of changes]"
+git push origin main
+
+# Commit backend changes (including updated head.blade.php)
+cd ~/InvoiceNinja/invoiceninja-fork
+git add resources/views/react/head.blade.php
+git commit -m "Update React bundle references"
+git push origin production
+```
+
+**4. Deploy to Production**
+```bash
+# Pull backend changes (includes updated Blade template)
+ssh root@128.199.146.209 "cd /var/www/invoiceninja && git pull origin production"
+
+# Rsync React bundles (they're gitignored, so can't be pulled via git)
+rsync -avz --delete ~/InvoiceNinja/invoiceninja-ui/dist/react/ \
+  root@128.199.146.209:/var/www/invoiceninja/public/react/
+
+# Fix ownership
+ssh root@128.199.146.209 "chown -R www-data:www-data /var/www/invoiceninja/public/react/"
+
+# Clear Laravel caches
+ssh root@128.199.146.209 "cd /var/www/invoiceninja && php artisan optimize:clear"
+```
+
+### Common Issues
+
+**Issue: 404 errors on React bundles**
+- **Cause:** Blade template references old bundle hashes
+- **Solution:** Run build script, verify `head.blade.php` was updated, commit and deploy
+
+**Issue: Application loads but shows old React code**
+- **Cause:** New Blade template deployed but old bundles still on server
+- **Solution:** Rsync fresh bundles to production, clear browser cache (Ctrl+Shift+R)
+
+**Issue: "Call to a member function format() on string"**
+- **Cause:** Model date fields returned as strings instead of Carbon instances
+- **Solution:** Use `Carbon::parse($model->date)->format()` instead of `$model->date->format()`
+- **Fixed in:** `app/Services/KitchenPrinterService.php` (commit 8a51d37)
+
+**Issue: Script shows "invoiceninja-fork directory not found"**
+- **Cause:** Repos not in expected directory structure
+- **Solution:** Ensure both repos are siblings in `~/InvoiceNinja/`
+
+### Manual Blade Template Update
+
+If the automated script fails, manually update the Blade template:
+
+1. Check bundle hashes in `invoiceninja-ui/dist/index.html`:
+   ```html
+   <script type="module" crossorigin src="/react/index-CukD1lb6.js"></script>
+   <link rel="stylesheet" crossorigin href="/react/index-BDngorsm.css">
+   ```
+
+2. Update `invoiceninja-fork/resources/views/react/head.blade.php`:
+   ```blade
+   <link rel="stylesheet" href="{{ asset('react/index-BDngorsm.css') }}">
+   <script type="module" crossorigin src="{{ asset('react/index-CukD1lb6.js') }}"></script>
+   ```
+
+3. Clear view cache on production:
+   ```bash
+   php artisan view:clear
+   ```
+
+### Verification Checklist
+
+After deploying React UI changes:
+
+- [ ] Build completed successfully (`npm run build`)
+- [ ] Blade template updated automatically
+- [ ] Both repos committed and pushed
+- [ ] Bundles rsync'd to production
+- [ ] File ownership set to `www-data:www-data`
+- [ ] Laravel caches cleared (`php artisan optimize:clear`)
+- [ ] Browser hard refresh (Ctrl+Shift+R)
+- [ ] Test affected functionality in production
+- [ ] Check browser console for 404 errors
+
+### Important Notes
+
+- ✅ **Always** run the build script before deploying
+- ✅ **Always** commit the updated `head.blade.php` to git
+- ✅ **Always** use rsync to deploy bundles (they're gitignored)
+- ❌ **Never** manually edit bundle hashes in `head.blade.php`
+- ❌ **Never** commit `dist/` or `public/react/` directories to git
+- ❌ **Never** modify React bundles directly on production server
+
+---
+
 ## Critical Lessons Learned
 
 ### Backup Strategy
