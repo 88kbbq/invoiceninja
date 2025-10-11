@@ -38,6 +38,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\KitchenPrinterController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\MailgunController;
 use App\Http\Controllers\PaymentController;
@@ -277,11 +278,11 @@ Route::group(['middleware' => ['throttle:api', 'token_auth', 'valid_json','local
     Route::get('invoices/{invoice}/delivery_note', [InvoiceController::class, 'deliveryNote'])->name('invoices.delivery_note');
 
     // Kitchen Printer Routes - MUST come before {action} wildcard route
-    Route::post('invoices/{invoice}/print_kitchen', [App\Http\Controllers\KitchenPrinterController::class, 'printInvoice'])->name('invoices.print_kitchen');
-    Route::post('invoices/bulk_print_kitchen', [App\Http\Controllers\KitchenPrinterController::class, 'bulkPrintInvoices'])->name('invoices.bulk_print_kitchen');
-    Route::post('quotes/{quote}/print_kitchen', [App\Http\Controllers\KitchenPrinterController::class, 'printQuote'])->name('quotes.print_kitchen');
-    Route::get('kitchen/test-connection', [App\Http\Controllers\KitchenPrinterController::class, 'testConnection'])->name('kitchen.test_connection');
-    Route::get('kitchen/test-print', [App\Http\Controllers\KitchenPrinterController::class, 'testPrint'])->name('kitchen.test_print');
+    Route::post('invoices/{invoice}/print_kitchen', [KitchenPrinterController::class, 'printInvoice'])->name('invoices.print_kitchen');
+    Route::post('invoices/bulk_print_kitchen', [KitchenPrinterController::class, 'bulkPrintInvoices'])->name('invoices.bulk_print_kitchen');
+    Route::post('quotes/{quote}/print_kitchen', [KitchenPrinterController::class, 'printQuote'])->name('quotes.print_kitchen');
+    Route::get('kitchen/test-connection', [KitchenPrinterController::class, 'testConnection'])->name('kitchen.test_connection');
+    Route::get('kitchen/test-print', [KitchenPrinterController::class, 'testPrint'])->name('kitchen.test_print');
 
     Route::get('invoices/{invoice}/{action}', [InvoiceController::class, 'action'])->name('invoices.action');
     Route::put('invoices/{invoice}/upload', [InvoiceController::class, 'upload'])->name('invoices.upload');
