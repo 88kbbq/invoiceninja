@@ -283,9 +283,6 @@ Route::group(['middleware' => ['throttle:api', 'token_auth', 'valid_json','local
     Route::get('invoice/{invitation_key}/download_e_invoice', [InvoiceController::class, 'downloadEInvoice'])->name('invoices.downloadEInvoice');
     Route::post('invoices/bulk', [InvoiceController::class, 'bulk'])->name('invoices.bulk');
     Route::post('invoices/update_reminders', [InvoiceController::class, 'update_reminders'])->name('invoices.update_reminders');
-    Route::post('invoices/{invoice}/print_kitchen', [\App\Http\Controllers\KitchenPrinterController::class, 'print'])->name('invoices.print_kitchen');
-    Route::get('kitchen/test-connection', [\App\Http\Controllers\KitchenPrinterController::class, 'testConnection'])->name('kitchen.test_connection');
-    Route::get('kitchen/test-print', [\App\Http\Controllers\KitchenPrinterController::class, 'testPrint'])->name('kitchen.test_print');
 
     Route::resource('locations', LocationController::class); // name = (locations. index / create / show / update / destroy / edit
     Route::post('locations/bulk', [LocationController::class, 'bulk'])->name('locations.bulk');
