@@ -6,7 +6,7 @@ use App\Models\Invoice;
 use App\Models\Quote;
 use App\Services\KitchenPrinterService;
 use App\Http\Controllers\BaseController;
-use App\Http\Requests\Invoice\ActionInvoiceRequest;
+use App\Http\Requests\Invoice\ShowInvoiceRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -20,7 +20,7 @@ class KitchenPrinterController extends BaseController
         $this->printerService = $printerService;
     }
 
-    public function printInvoice(ActionInvoiceRequest $request, Invoice $invoice)
+    public function printInvoice(ShowInvoiceRequest $request, Invoice $invoice)
     {
         try {
             // Send to kitchen printer
