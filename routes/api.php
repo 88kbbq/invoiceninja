@@ -274,10 +274,10 @@ Route::group(['middleware' => ['throttle:api', 'token_auth', 'valid_json','local
     Route::post('import_json', [ImportJsonController::class, 'import'])->name('import.import_json');
     Route::post('preimport', [ImportController::class, 'preimport'])->name('import.preimport');
     
-    // Kitchen Printer Routes - Place before Route::resource to ensure they match first
-    Route::post('invoices/{invoice}/print_kitchen', [KitchenPrinterController::class, 'printInvoice'])->name('invoices.print_kitchen');
-    Route::post('invoices/bulk_print_kitchen', [KitchenPrinterController::class, 'bulkPrintInvoices'])->name('invoices.bulk_print_kitchen');
-    Route::post('quotes/{quote}/print_kitchen', [KitchenPrinterController::class, 'printQuote'])->name('quotes.print_kitchen');
+    // Kitchen Printer Routes - Using unique path pattern to avoid conflicts
+    Route::post('kitchen-print/invoice/{invoice}', [KitchenPrinterController::class, 'printInvoice'])->name('invoices.print_kitchen');
+    Route::post('kitchen-print/invoices/bulk', [KitchenPrinterController::class, 'bulkPrintInvoices'])->name('invoices.bulk_print_kitchen');
+    Route::post('kitchen-print/quote/{quote}', [KitchenPrinterController::class, 'printQuote'])->name('quotes.print_kitchen');
     Route::get('kitchen/test-connection', [KitchenPrinterController::class, 'testConnection'])->name('kitchen.test_connection');
     Route::get('kitchen/test-print', [KitchenPrinterController::class, 'testPrint'])->name('kitchen.test_print');
 
