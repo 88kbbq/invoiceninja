@@ -284,7 +284,7 @@ Route::group(['middleware' => ['throttle:api', 'token_auth', 'valid_json','local
     Route::get('kitchen/test-connection', [KitchenPrinterController::class, 'testConnection'])->name('kitchen.test_connection');
     Route::get('kitchen/test-print', [KitchenPrinterController::class, 'testPrint'])->name('kitchen.test_print');
 
-    Route::get('invoices/{invoice}/{action}', [InvoiceController::class, 'action'])->name('invoices.action');
+    Route::get('invoices/{invoice}/{action}', [InvoiceController::class, 'action'])->name('invoices.action')->where('action', '(?!print_kitchen).*');
     Route::put('invoices/{invoice}/upload', [InvoiceController::class, 'upload'])->name('invoices.upload');
     Route::post('invoices/{invoice}/payment_schedule', [InvoiceController::class, 'paymentSchedule'])->name('invoices.payment_schedule');
     Route::delete('invoices/{invoice}/payment_schedule', [InvoiceController::class, 'deletePaymentSchedule'])->name('invoices.delete_payment_schedule');
