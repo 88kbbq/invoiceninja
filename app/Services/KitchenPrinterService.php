@@ -67,22 +67,22 @@ class KitchenPrinterService
         $client = $invoice->client;
         $lineItems = $invoice->line_items;
 
-        // Start building receipt with ESC/POS commands
+        // Start building receipt with StarPRNT commands
         $receipt = "";
 
         // Initialize printer
         $receipt .= chr(27) . chr(64); // ESC @ - Initialize printer
 
-        // Set alignment to center
-        $receipt .= chr(27) . chr(97) . chr(1); // ESC a 1 - Center alignment
+        // Set alignment to center (StarPRNT: ESC GS a)
+        $receipt .= chr(27) . chr(29) . chr(97) . chr(1); // ESC GS a 1 - Center alignment
 
-        // Double width and height for header
-        $receipt .= chr(27) . chr(33) . chr(48); // ESC ! 48 - Double width + height
+        // Double width and height for header (StarPRNT: ESC i)
+        $receipt .= chr(27) . chr(105) . chr(1) . chr(1); // ESC i 1 1 - Double width + height
         $receipt .= "*** KITCHEN ORDER ***\n";
-        $receipt .= chr(27) . chr(33) . chr(0); // ESC ! 0 - Normal size
+        $receipt .= chr(27) . chr(105) . chr(0) . chr(0); // ESC i 0 0 - Normal size
 
-        // Set alignment to left
-        $receipt .= chr(27) . chr(97) . chr(0); // ESC a 0 - Left alignment
+        // Set alignment to left (StarPRNT: ESC GS a)
+        $receipt .= chr(27) . chr(29) . chr(97) . chr(0); // ESC GS a 0 - Left alignment
         $receipt .= "\n";
 
         // Invoice details
@@ -100,9 +100,9 @@ class KitchenPrinterService
         $receipt .= "\n";
 
         // Client info
-        $receipt .= chr(27) . chr(33) . chr(8); // ESC ! 8 - Emphasized
+        $receipt .= chr(27) . chr(69); // ESC E - Emphasized on
         $receipt .= "Customer: " . $client->present()->name() . "\n";
-        $receipt .= chr(27) . chr(33) . chr(0); // ESC ! 0 - Normal
+        $receipt .= chr(27) . chr(70); // ESC F - Emphasized off
 
         if ($client->phone) {
             $receipt .= "Phone: " . $client->phone . "\n";
@@ -111,9 +111,9 @@ class KitchenPrinterService
         $receipt .= str_repeat("-", 40) . "\n";
 
         // Line items (no prices for kitchen)
-        $receipt .= chr(27) . chr(33) . chr(8); // ESC ! 8 - Emphasized
+        $receipt .= chr(27) . chr(69); // ESC E - Emphasized on
         $receipt .= "ITEMS:\n";
-        $receipt .= chr(27) . chr(33) . chr(0); // ESC ! 0 - Normal
+        $receipt .= chr(27) . chr(70); // ESC F - Emphasized off
         $receipt .= str_repeat("-", 40) . "\n";
 
         foreach ($lineItems as $item) {
@@ -146,13 +146,13 @@ class KitchenPrinterService
 
         // Footer
         $receipt .= "\n";
-        $receipt .= chr(27) . chr(97) . chr(1); // ESC a 1 - Center alignment
+        $receipt .= chr(27) . chr(29) . chr(97) . chr(1); // ESC GS a 1 - Center alignment
         $receipt .= "Time: " . now()->format('H:i:s') . "\n";
-        $receipt .= chr(27) . chr(97) . chr(0); // ESC a 0 - Left alignment
+        $receipt .= chr(27) . chr(29) . chr(97) . chr(0); // ESC GS a 0 - Left alignment
 
-        // Feed and cut
+        // Feed and cut (StarPRNT: ESC d)
         $receipt .= "\n\n\n\n";
-        $receipt .= chr(29) . chr(86) . chr(66) . chr(0); // GS V B 0 - Partial cut
+        $receipt .= chr(27) . chr(100) . chr(1); // ESC d 1 - Partial cut
 
         return $receipt;
     }
@@ -162,22 +162,22 @@ class KitchenPrinterService
         $client = $quote->client;
         $lineItems = $quote->line_items;
 
-        // Start building receipt
+        // Start building receipt with StarPRNT commands
         $receipt = "";
 
         // Initialize printer
         $receipt .= chr(27) . chr(64); // ESC @ - Initialize printer
 
-        // Set alignment to center
-        $receipt .= chr(27) . chr(97) . chr(1); // ESC a 1 - Center alignment
+        // Set alignment to center (StarPRNT: ESC GS a)
+        $receipt .= chr(27) . chr(29) . chr(97) . chr(1); // ESC GS a 1 - Center alignment
 
-        // Double width and height for header
-        $receipt .= chr(27) . chr(33) . chr(48); // ESC ! 48 - Double width + height
+        // Double width and height for header (StarPRNT: ESC i)
+        $receipt .= chr(27) . chr(105) . chr(1) . chr(1); // ESC i 1 1 - Double width + height
         $receipt .= "*** QUOTE ***\n";
-        $receipt .= chr(27) . chr(33) . chr(0); // ESC ! 0 - Normal size
+        $receipt .= chr(27) . chr(105) . chr(0) . chr(0); // ESC i 0 0 - Normal size
 
-        // Set alignment to left
-        $receipt .= chr(27) . chr(97) . chr(0); // ESC a 0 - Left alignment
+        // Set alignment to left (StarPRNT: ESC GS a)
+        $receipt .= chr(27) . chr(29) . chr(97) . chr(0); // ESC GS a 0 - Left alignment
         $receipt .= "\n";
 
         // Quote details
@@ -186,9 +186,9 @@ class KitchenPrinterService
         $receipt .= "\n";
 
         // Client info
-        $receipt .= chr(27) . chr(33) . chr(8); // ESC ! 8 - Emphasized
+        $receipt .= chr(27) . chr(69); // ESC E - Emphasized on
         $receipt .= "Customer: " . $client->present()->name() . "\n";
-        $receipt .= chr(27) . chr(33) . chr(0); // ESC ! 0 - Normal
+        $receipt .= chr(27) . chr(70); // ESC F - Emphasized off
 
         if ($client->phone) {
             $receipt .= "Phone: " . $client->phone . "\n";
@@ -225,13 +225,13 @@ class KitchenPrinterService
 
         // Footer
         $receipt .= "\n";
-        $receipt .= chr(27) . chr(97) . chr(1); // ESC a 1 - Center alignment
+        $receipt .= chr(27) . chr(29) . chr(97) . chr(1); // ESC GS a 1 - Center alignment
         $receipt .= "Time: " . now()->format('H:i:s') . "\n";
-        $receipt .= chr(27) . chr(97) . chr(0); // ESC a 0 - Left alignment
+        $receipt .= chr(27) . chr(29) . chr(97) . chr(0); // ESC GS a 0 - Left alignment
 
-        // Feed and cut
+        // Feed and cut (StarPRNT: ESC d)
         $receipt .= "\n\n\n\n";
-        $receipt .= chr(29) . chr(86) . chr(66) . chr(0); // GS V B 0 - Partial cut
+        $receipt .= chr(27) . chr(100) . chr(1); // ESC d 1 - Partial cut
 
         return $receipt;
     }
@@ -243,16 +243,16 @@ class KitchenPrinterService
         // Initialize printer
         $receipt .= chr(27) . chr(64); // ESC @ - Initialize printer
 
-        // Set alignment to center
-        $receipt .= chr(27) . chr(97) . chr(1); // ESC a 1 - Center alignment
+        // Set alignment to center (StarPRNT: ESC GS a)
+        $receipt .= chr(27) . chr(29) . chr(97) . chr(1); // ESC GS a 1 - Center alignment
 
-        // Double width and height for header
-        $receipt .= chr(27) . chr(33) . chr(48); // ESC ! 48 - Double width + height
+        // Double width and height for header (StarPRNT: ESC i)
+        $receipt .= chr(27) . chr(105) . chr(1) . chr(1); // ESC i 1 1 - Double width + height
         $receipt .= "*** TEST PRINT ***\n";
-        $receipt .= chr(27) . chr(33) . chr(0); // ESC ! 0 - Normal size
+        $receipt .= chr(27) . chr(105) . chr(0) . chr(0); // ESC i 0 0 - Normal size
 
-        // Set alignment to left
-        $receipt .= chr(27) . chr(97) . chr(0); // ESC a 0 - Left alignment
+        // Set alignment to left (StarPRNT: ESC GS a)
+        $receipt .= chr(27) . chr(29) . chr(97) . chr(0); // ESC GS a 0 - Left alignment
         $receipt .= "\n";
 
         $receipt .= "Invoice Ninja Kitchen Printer\n";
