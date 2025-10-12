@@ -110,14 +110,9 @@ class KitchenPrinterService
             // Quantity
             $qty = number_format($item->quantity, 0);
 
-            // Item description with quantity
-            $description = $item->product_key ?: $item->notes;
-            $receipt .= $toBig5($description . " " . str_pad($qty, 3, " ", STR_PAD_LEFT)) . "\n";
-
-            // Add notes if different from product key
-            if ($item->notes && $item->notes != $item->product_key) {
-                $receipt .= "     " . $toBig5($item->notes) . "\n";
-            }
+            // Item name with quantity - use product_key only
+            $itemName = $item->product_key ?: $item->notes;
+            $receipt .= $toBig5($itemName . " " . str_pad($qty, 3, " ", STR_PAD_LEFT)) . "\n";
         }
 
         $receipt .= str_repeat("-", 40) . "\n";
