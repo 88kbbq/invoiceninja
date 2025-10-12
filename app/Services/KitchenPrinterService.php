@@ -73,20 +73,11 @@ class KitchenPrinterService
         // Initialize printer
         $receipt .= chr(27) . chr(64); // ESC @ - Initialize printer
 
-        // Set alignment to center (StarPRNT: ESC GS a)
-        $receipt .= chr(27) . chr(29) . chr(97) . chr(1); // ESC GS a 1 - Center alignment
+        // Enable Traditional Chinese Big5 encoding
+        $receipt .= chr(27) . chr(36); // ESC $ - Enable Kanji/Chinese character mode
 
-        // Double width and height for header (StarPRNT: ESC i)
-        $receipt .= chr(27) . chr(105) . chr(1) . chr(1); // ESC i 1 1 - Double width + height
-        $receipt .= "*** KITCHEN ORDER ***\n";
-        $receipt .= chr(27) . chr(105) . chr(0) . chr(0); // ESC i 0 0 - Normal size
-
-        // Set alignment to left (StarPRNT: ESC GS a)
-        $receipt .= chr(27) . chr(29) . chr(97) . chr(0); // ESC GS a 0 - Left alignment
-        $receipt .= "\n";
-
-        // Invoice details
-        $receipt .= "Order #: " . $invoice->number . "\n";
+        // Invoice details (barcode can be added here if needed)
+        $receipt .= $invoice->number . "\n";
         $receipt .= "Date: " . Carbon::parse($invoice->date)->format('Y-m-d H:i') . "\n";
 
         // Check for custom event time/date fields
@@ -168,20 +159,11 @@ class KitchenPrinterService
         // Initialize printer
         $receipt .= chr(27) . chr(64); // ESC @ - Initialize printer
 
-        // Set alignment to center (StarPRNT: ESC GS a)
-        $receipt .= chr(27) . chr(29) . chr(97) . chr(1); // ESC GS a 1 - Center alignment
-
-        // Double width and height for header (StarPRNT: ESC i)
-        $receipt .= chr(27) . chr(105) . chr(1) . chr(1); // ESC i 1 1 - Double width + height
-        $receipt .= "*** QUOTE ***\n";
-        $receipt .= chr(27) . chr(105) . chr(0) . chr(0); // ESC i 0 0 - Normal size
-
-        // Set alignment to left (StarPRNT: ESC GS a)
-        $receipt .= chr(27) . chr(29) . chr(97) . chr(0); // ESC GS a 0 - Left alignment
-        $receipt .= "\n";
+        // Enable Traditional Chinese Big5 encoding
+        $receipt .= chr(27) . chr(36); // ESC $ - Enable Kanji/Chinese character mode
 
         // Quote details
-        $receipt .= "Quote #: " . $quote->number . "\n";
+        $receipt .= $quote->number . "\n";
         $receipt .= "Date: " . Carbon::parse($quote->date)->format('Y-m-d H:i') . "\n";
         $receipt .= "\n";
 
@@ -197,9 +179,9 @@ class KitchenPrinterService
         $receipt .= str_repeat("-", 40) . "\n";
 
         // Line items
-        $receipt .= chr(27) . chr(33) . chr(8); // ESC ! 8 - Emphasized
+        $receipt .= chr(27) . chr(69); // ESC E - Emphasized on
         $receipt .= "ITEMS:\n";
-        $receipt .= chr(27) . chr(33) . chr(0); // ESC ! 0 - Normal
+        $receipt .= chr(27) . chr(70); // ESC F - Emphasized off
         $receipt .= str_repeat("-", 40) . "\n";
 
         foreach ($lineItems as $item) {
@@ -243,17 +225,8 @@ class KitchenPrinterService
         // Initialize printer
         $receipt .= chr(27) . chr(64); // ESC @ - Initialize printer
 
-        // Set alignment to center (StarPRNT: ESC GS a)
-        $receipt .= chr(27) . chr(29) . chr(97) . chr(1); // ESC GS a 1 - Center alignment
-
-        // Double width and height for header (StarPRNT: ESC i)
-        $receipt .= chr(27) . chr(105) . chr(1) . chr(1); // ESC i 1 1 - Double width + height
-        $receipt .= "*** TEST PRINT ***\n";
-        $receipt .= chr(27) . chr(105) . chr(0) . chr(0); // ESC i 0 0 - Normal size
-
-        // Set alignment to left (StarPRNT: ESC GS a)
-        $receipt .= chr(27) . chr(29) . chr(97) . chr(0); // ESC GS a 0 - Left alignment
-        $receipt .= "\n";
+        // Enable Traditional Chinese Big5 encoding
+        $receipt .= chr(27) . chr(36); // ESC $ - Enable Kanji/Chinese character mode
 
         $receipt .= "Invoice Ninja Kitchen Printer\n";
         $receipt .= "TCP/IP Direct Printing\n";
@@ -264,9 +237,9 @@ class KitchenPrinterService
         $receipt .= "\n";
         $receipt .= "If you see this, printing works!\n";
 
-        // Feed and cut
+        // Feed and cut (StarPRNT: ESC d)
         $receipt .= "\n\n\n\n";
-        $receipt .= chr(29) . chr(86) . chr(66) . chr(0); // GS V B 0 - Partial cut
+        $receipt .= chr(27) . chr(100) . chr(1); // ESC d 1 - Partial cut
 
         return $receipt;
     }
