@@ -73,6 +73,9 @@ class KitchenPrinterService
         // Initialize printer
         $receipt .= chr(27) . chr(64); // ESC @ - Initialize printer
 
+        // Set double size for entire receipt (ESC ! 48 = double width + height)
+        $receipt .= chr(27) . chr(33) . chr(48);
+
         // Helper function to convert UTF-8 to Big5
         $toBig5 = function($text) {
             return iconv('UTF-8', 'BIG-5//IGNORE', $text);
