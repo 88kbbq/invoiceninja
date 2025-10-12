@@ -44,6 +44,7 @@ use App\Http\Controllers\MailgunController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PreviewController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\TaiwanReceiptController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaxRateController;
 use App\Http\Controllers\WebCronController;
@@ -311,6 +312,10 @@ Route::group(['middleware' => ['throttle:api', 'token_auth', 'valid_json','local
     Route::post('payments/refund', [PaymentController::class, 'refund'])->name('payments.refund');
     Route::post('payments/bulk', [PaymentController::class, 'bulk'])->name('payments.bulk');
     Route::put('payments/{payment}/upload', [PaymentController::class, 'upload']);
+
+    // Taiwan E-Invoice Receipt Routes
+    Route::post('payments/{payment}/taiwan_receipt', [TaiwanReceiptController::class, 'issue'])->name('payments.taiwan_receipt.issue');
+    Route::delete('payments/{payment}/taiwan_receipt', [TaiwanReceiptController::class, 'void'])->name('payments.taiwan_receipt.void');
 
     Route::resource('payment_terms', PaymentTermController::class); // name = (payments. index / create / show / update / destroy / edit
     Route::post('payment_terms/bulk', [PaymentTermController::class, 'bulk'])->name('payment_terms.bulk');
