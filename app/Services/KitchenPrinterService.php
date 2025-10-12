@@ -67,46 +67,41 @@ class KitchenPrinterService
         $client = $invoice->client;
         $lineItems = $invoice->line_items;
 
-        // Start building receipt with StarPRNT commands
+        // Start building receipt with proper Big5 encoding
         $receipt = "";
 
         // Initialize printer
         $receipt .= chr(27) . chr(64); // ESC @ - Initialize printer
 
-        // Enable Traditional Chinese Big5 encoding
-        $receipt .= chr(27) . chr(36); // ESC $ - Enable Kanji/Chinese character mode
+        // Helper function to convert UTF-8 to Big5
+        $toBig5 = function($text) {
+            return iconv('UTF-8', 'BIG-5//IGNORE', $text);
+        };
 
-        // Invoice details (barcode can be added here if needed)
-        $receipt .= $invoice->number . "\n";
-        $receipt .= "Date: " . Carbon::parse($invoice->date)->format('Y-m-d H:i') . "\n";
+        // Invoice number
+        $receipt .= $toBig5($invoice->number) . "\n";
+        $receipt .= $toBig5(Carbon::parse($invoice->date)->format('Y-m-d H:i')) . "\n";
 
         // Check for custom event time/date fields
         if ($invoice->custom_value1) {
-            $receipt .= "Event Time: " . $invoice->custom_value1 . "\n";
+            $receipt .= $toBig5($invoice->custom_value1) . "\n";
         }
         if ($invoice->custom_value2) {
-            $receipt .= "Event Date: " . $invoice->custom_value2 . "\n";
+            $receipt .= $toBig5($invoice->custom_value2) . "\n";
         }
 
         $receipt .= "\n";
 
         // Client info
-        $receipt .= chr(27) . chr(69); // ESC E - Emphasized on
-        $receipt .= "Customer: " . $client->present()->name() . "\n";
-        $receipt .= chr(27) . chr(70); // ESC F - Emphasized off
+        $receipt .= $toBig5($client->present()->name()) . "\n";
 
         if ($client->phone) {
-            $receipt .= "Phone: " . $client->phone . "\n";
+            $receipt .= $toBig5($client->phone) . "\n";
         }
 
         $receipt .= str_repeat("-", 40) . "\n";
 
         // Line items (no prices for kitchen)
-        $receipt .= chr(27) . chr(69); // ESC E - Emphasized on
-        $receipt .= "ITEMS:\n";
-        $receipt .= chr(27) . chr(70); // ESC F - Emphasized off
-        $receipt .= str_repeat("-", 40) . "\n";
-
         foreach ($lineItems as $item) {
             if (empty($item->product_key) && empty($item->notes)) {
                 continue;
@@ -114,15 +109,14 @@ class KitchenPrinterService
 
             // Quantity
             $qty = number_format($item->quantity, 0);
-            $receipt .= str_pad($qty . "x", 5, " ", STR_PAD_RIGHT);
 
-            // Item description
+            // Item description with quantity
             $description = $item->product_key ?: $item->notes;
-            $receipt .= $description . "\n";
+            $receipt .= $toBig5($description . " " . str_pad($qty, 3, " ", STR_PAD_LEFT)) . "\n";
 
             // Add notes if different from product key
             if ($item->notes && $item->notes != $item->product_key) {
-                $receipt .= "     " . $item->notes . "\n";
+                $receipt .= "     " . $toBig5($item->notes) . "\n";
             }
         }
 
@@ -130,16 +124,14 @@ class KitchenPrinterService
 
         // Public notes (if any)
         if ($invoice->public_notes) {
-            $receipt .= "\nNotes:\n";
-            $receipt .= wordwrap($invoice->public_notes, 40) . "\n";
+            $receipt .= $toBig5($invoice->public_notes) . "\n";
             $receipt .= str_repeat("-", 40) . "\n";
         }
 
-        // Footer
-        $receipt .= "\n";
-        $receipt .= chr(27) . chr(29) . chr(97) . chr(1); // ESC GS a 1 - Center alignment
-        $receipt .= "Time: " . now()->format('H:i:s') . "\n";
-        $receipt .= chr(27) . chr(29) . chr(97) . chr(0); // ESC GS a 0 - Left alignment
+        // Private notes (if any)
+        if ($invoice->private_notes) {
+            $receipt .= $toBig5($invoice->private_notes) . "\n";
+        }
 
         // Feed and cut (StarPRNT: ESC d)
         $receipt .= "\n\n\n\n";
