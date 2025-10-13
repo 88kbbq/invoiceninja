@@ -81,6 +81,9 @@ class KitchenPrinterService
             return iconv('UTF-8', 'BIG-5//IGNORE', $text);
         };
 
+        // Invoice number at top
+        $receipt .= $toBig5($invoice->number) . "\n";
+
         // Date and time in Chinese format
         $receipt .= $toBig5(Carbon::parse($invoice->date)->format('Y-m-d')) . "\n";
 
