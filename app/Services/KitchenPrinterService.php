@@ -16,7 +16,7 @@ class KitchenPrinterService
 
     public function __construct()
     {
-        $this->printerIp = config('kitchenprinter.tcp.ip', '10.0.0.150');
+        $this->printerIp = config('kitchenprinter.tcp.ip', '192.168.50.39');
         $this->printerPort = config('kitchenprinter.tcp.port', 9100);
         $this->enabled = config('kitchenprinter.enabled', false);
     }

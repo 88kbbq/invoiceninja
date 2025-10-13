@@ -13,7 +13,7 @@ return [
     'enabled' => env('KITCHEN_PRINTER_ENABLED', false),
 
     'tcp' => [
-        'ip' => env('KITCHEN_PRINTER_IP', '10.0.0.150'),
+        'ip' => env('KITCHEN_PRINTER_IP', '192.168.50.39'),
         'port' => env('KITCHEN_PRINTER_PORT', 9100),
     ],
 
