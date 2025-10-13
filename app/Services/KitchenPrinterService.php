@@ -81,28 +81,24 @@ class KitchenPrinterService
             return iconv('UTF-8', 'BIG-5//IGNORE', $text);
         };
 
-        // Invoice number
-        $receipt .= $toBig5($invoice->number) . "\n";
-        $receipt .= $toBig5(Carbon::parse($invoice->date)->format('Y-m-d H:i')) . "\n";
+        // Date and time in Chinese format
+        $receipt .= $toBig5(Carbon::parse($invoice->date)->format('Y-m-d')) . "\n";
 
-        // Check for custom event time/date fields
+        // Event time from custom fields (if exists)
         if ($invoice->custom_value1) {
             $receipt .= $toBig5($invoice->custom_value1) . "\n";
         }
-        if ($invoice->custom_value2) {
-            $receipt .= $toBig5($invoice->custom_value2) . "\n";
-        }
 
-        $receipt .= "\n";
-
-        // Client info
+        // Client name
         $receipt .= $toBig5($client->present()->name()) . "\n";
 
+        // Client phone
         if ($client->phone) {
             $receipt .= $toBig5($client->phone) . "\n";
         }
 
-        $receipt .= str_repeat("-", 40) . "\n";
+        // Separator line
+        $receipt .= str_repeat("-", 20) . "\n";
 
         // Line items (no prices for kitchen)
         foreach ($lineItems as $item) {
@@ -113,26 +109,28 @@ class KitchenPrinterService
             // Quantity
             $qty = number_format($item->quantity, 0);
 
-            // Item name with quantity - use product_key only
+            // Item name - use product_key only
             $itemName = $item->product_key ?: $item->notes;
-            $receipt .= $toBig5($itemName . " " . str_pad($qty, 3, " ", STR_PAD_LEFT)) . "\n";
+
+            // Format: "Item name    qty" with quantity right-aligned
+            $receipt .= $toBig5(str_pad($itemName, 17, " ", STR_PAD_RIGHT) . str_pad($qty, 3, " ", STR_PAD_LEFT)) . "\n";
         }
 
-        $receipt .= str_repeat("-", 40) . "\n";
+        // Separator line
+        $receipt .= str_repeat("-", 20) . "\n";
 
-        // Public notes (if any)
-        if ($invoice->public_notes) {
+        // Public notes (only if not empty)
+        if (!empty($invoice->public_notes)) {
             $receipt .= $toBig5($invoice->public_notes) . "\n";
-            $receipt .= str_repeat("-", 40) . "\n";
         }
 
-        // Private notes (if any)
-        if ($invoice->private_notes) {
+        // Private notes (only if not empty)
+        if (!empty($invoice->private_notes)) {
             $receipt .= $toBig5($invoice->private_notes) . "\n";
         }
 
         // Feed and cut (StarPRNT: ESC d)
-        $receipt .= "\n\n\n\n";
+        $receipt .= "\n\n\n";
         $receipt .= chr(27) . chr(100) . chr(1); // ESC d 1 - Partial cut
 
         return $receipt;
