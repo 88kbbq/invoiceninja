@@ -109,14 +109,41 @@ class KitchenPrinterService
                 continue;
             }
 
-            // Quantity
-            $qty = number_format($item->quantity, 0);
-
-            // Item name - use product_key only
+            // Get item name (product_key contains both Chinese and English)
             $itemName = $item->product_key ?: $item->notes;
 
-            // Format: "Item name    qty" with quantity right-aligned
-            $receipt .= $toBig5(str_pad($itemName, 17, " ", STR_PAD_RIGHT) . str_pad($qty, 3, " ", STR_PAD_LEFT)) . "\n";
+            // Format quantity - show decimals if not whole number
+            $qty = $item->quantity;
+            if (floor($qty) == $qty) {
+                $qtyStr = number_format($qty, 0); // Whole number: "3"
+            } else {
+                $qtyStr = rtrim(rtrim(number_format($qty, 2, '.', ''), '0'), '.'); // Decimals: "2.5" or "1.42"
+            }
+
+            // Line width for 2x size text (approx 20 chars per line)
+            $lineWidth = 20;
+            $minSpacing = 3;
+            $qtyWidth = strlen($qtyStr) + 2; // Add padding inside box
+
+            // Calculate available width for item name
+            $nameWidth = $lineWidth - $qtyWidth - $minSpacing;
+
+            // Item name (left-aligned, may wrap)
+            $receipt .= $toBig5($itemName);
+
+            // Spacing before quantity
+            $receipt .= str_repeat(" ", $minSpacing);
+
+            // Inverse video ON (white text on black)
+            $receipt .= chr(27) . chr(29) . chr(66) . chr(1); // ESC GS B 1
+
+            // Quantity in box with padding
+            $receipt .= " " . $qtyStr . " ";
+
+            // Inverse video OFF
+            $receipt .= chr(27) . chr(29) . chr(66) . chr(0); // ESC GS B 0
+
+            $receipt .= "\n";
         }
 
         // Separator line
