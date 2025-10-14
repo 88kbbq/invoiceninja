@@ -58,9 +58,10 @@ class TaiwanEInvoiceService
 
         // Prepare POST data per API documentation
         // Content-Type: application/x-www-form-urlencoded
+        // Note: Http::asForm() automatically URL-encodes parameters (like http_build_query)
         $postData = [
             'invoice' => $this->companyGui,
-            'data' => urlencode($dataJson), // URL encode as per docs
+            'data' => $dataJson, // Do NOT manually urlencode - asForm() handles it
             'time' => $timestamp,
             'sign' => $signature,
         ];
@@ -122,27 +123,47 @@ class TaiwanEInvoiceService
             $buyerGui = $invoice->custom_value2 ?? '';
             $isB2B = !empty($buyerGui) && strlen($buyerGui) === 8;
 
-            // Calculate amounts
-            $totalAmount = (int) round($payment->amount);
-            $taxAmount = $isB2B ? (int) round($invoice->total_taxes ?? 0) : 0;
-            $salesAmount = $isB2B ? ($totalAmount - $taxAmount) : $totalAmount;
-
             // Prepare line items
+            // IMPORTANT: ProductItem amounts are TAX-INCLUSIVE (as-is from invoice)
             $productItems = [];
+            $itemsTotal = 0;
+
             foreach ($invoice->line_items as $item) {
                 $quantity = (float) $item->quantity;
-                $unitPrice = (float) $item->cost;
+                $unitPrice = (int) round((float) $item->cost); // Tax-inclusive price from invoice
+
+                // Calculate amount - MUST equal Quantity * UnitPrice for API validation
                 $amount = (int) round($quantity * $unitPrice);
+                $itemsTotal += $amount;
 
                 $productItems[] = [
                     'Description' => $item->product_key ?: $item->notes ?: '服務費',
-                    'Quantity' => $quantity,
+                    'Quantity' => (string) $quantity,      // Must be string per API docs
                     'Unit' => '式',
-                    'UnitPrice' => $unitPrice,
-                    'Amount' => $amount,
+                    'UnitPrice' => (string) $unitPrice,    // Must be string per API docs
+                    'Amount' => (string) $amount,          // Must be string per API docs
                     'Remark' => '',
-                    'TaxType' => 1, // 應稅
+                    'TaxType' => '1', // 應稅 (must be string per API docs)
                 ];
+            }
+
+            // Calculate amounts based on B2C vs B2B
+            // Sum of all ProductItem amounts (tax-inclusive)
+            $sum = $itemsTotal;
+
+            if ($isB2B) {
+                // B2B (with GUI): Extract tax from tax-inclusive amount
+                // Example: Sum=168 → Round(168/1.05)=160 → TaxAmount=168-160=8, SalesAmount=160
+                $salesAmountBeforeTax = (int) round($sum / 1.05);
+                $taxAmount = $sum - $salesAmountBeforeTax;
+                $salesAmount = $salesAmountBeforeTax;
+                $totalAmount = $sum;
+            } else {
+                // B2C (no GUI): No tax separation
+                // Example: Sum=168 → SalesAmount=168, TaxAmount=0, TotalAmount=168
+                $salesAmount = $sum;
+                $taxAmount = 0;
+                $totalAmount = $sum;
             }
 
             // Build API request data
@@ -159,13 +180,13 @@ class TaiwanEInvoiceService
                 'CarrierId2' => '',
                 'NPOBAN' => '', // No donation
                 'ProductItem' => $productItems,
-                'SalesAmount' => $salesAmount,
-                'FreeTaxSalesAmount' => 0,
-                'ZeroTaxSalesAmount' => 0,
-                'TaxType' => 1,
+                'SalesAmount' => (string) $salesAmount,           // Must be string per API docs
+                'FreeTaxSalesAmount' => '0',                      // Must be string per API docs
+                'ZeroTaxSalesAmount' => '0',                      // Must be string per API docs
+                'TaxType' => '1',
                 'TaxRate' => '0.05',
-                'TaxAmount' => $taxAmount,
-                'TotalAmount' => $totalAmount,
+                'TaxAmount' => (string) $taxAmount,               // Must be string per API docs
+                'TotalAmount' => (string) $totalAmount,           // Must be string per API docs
             ];
 
             // Call Amego API to issue invoice
