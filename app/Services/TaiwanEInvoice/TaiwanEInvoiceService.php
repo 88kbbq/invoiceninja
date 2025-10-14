@@ -234,12 +234,11 @@ class TaiwanEInvoiceService
 
             $receiptNumber = $payment->custom_value1;
 
-            // Build void request
+            // Build void request - API expects array of objects directly
+            // Per API docs: data field should be array like [{"CancelInvoiceNumber": "AB00001111"}]
             $requestData = [
-                'array' => [
-                    [
-                        'CancelInvoiceNumber' => $receiptNumber,
-                    ]
+                [
+                    'CancelInvoiceNumber' => $receiptNumber,
                 ]
             ];
 
