@@ -24,7 +24,7 @@ trait Utilities
      *
      * @return string
      */
-    public function getDescription(): string
+    public function getTapPayDescription(): string
     {
         $invoice_numbers = collect($this->payment_hash->invoices())
             ->pluck('invoice_number')

@@ -252,7 +252,7 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
                     'card_token' => $cgt->meta->card_token ?? '',
                     'amount' => (int) $amount,
                     'currency' => $this->tappay->client->getCurrencyCode(),
-                    'details' => $this->tappay->getDescription(),
+                    'details' => $this->tappay->getTapPayDescription(),
                     'cardholder' => [
                         'phone_number' => $this->tappay->client->phone ?? '',
                         'name' => $this->tappay->client->present()->name(),
@@ -313,7 +313,7 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
                     'merchant_id' => $this->tappay->company_gateway->getConfigField('merchantId'),
                     'amount' => (int) $amount,
                     'currency' => $this->tappay->client->getCurrencyCode(),
-                    'details' => $this->tappay->getDescription(),
+                    'details' => $this->tappay->getTapPayDescription(),
                     'cardholder' => [
                         'phone_number' => $this->tappay->client->phone ?? '',
                         'name' => $cardholder_name,

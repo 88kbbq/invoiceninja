@@ -274,7 +274,7 @@ class TapPayPaymentDriver extends BaseDriver
                     'card_token' => $cgt->meta->card_token ?? '',
                     'amount' => $tappay_amount,
                     'currency' => $this->client->getCurrencyCode(),
-                    'details' => $this->getDescription(),
+                    'details' => $this->getTapPayDescription(),
                     'cardholder' => [
                         'phone_number' => $this->client->phone ?? '',
                         'name' => $this->client->present()->name(),
