@@ -12,7 +12,14 @@
 
     <style>
         /* Fix duplicate sidebar issue - force hide mobile sidebar on payment pages */
-        .main_layout .md\:hidden {
+        div.md\:hidden,
+        .md\:hidden,
+        [class*="md:hidden"] {
+            display: none !important;
+        }
+
+        /* Also ensure only desktop sidebar shows */
+        .main_layout > div.md\:hidden {
             display: none !important;
         }
 
