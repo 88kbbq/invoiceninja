@@ -11,6 +11,11 @@
     <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.14.0"></script>
 
     <style>
+        /* Fix duplicate sidebar issue - force hide mobile sidebar on payment pages */
+        .main_layout .md\:hidden {
+            display: none !important;
+        }
+
         .tpfield {
             height: 40px;
             width: 100%;
