@@ -1,10 +1,8 @@
-@extends('portal.ninja2020.layout.payments', ['gateway_title' => 'Credit card', 'card_title' => 'Credit card'])
-
 @php
     $gateway_instance = $gateway instanceof \App\Models\CompanyGateway ? $gateway : $gateway->company_gateway;
     $token_billing_string = 'true';
 
-    if($gateway_instance->token_billing == 'off' || $gateway_instance->token_billing == 'optin'){
+    if ($gateway_instance->token_billing == 'off' || $gateway_instance->token_billing == 'optin') {
         $token_billing_string = 'false';
     }
 
@@ -13,7 +11,7 @@
     }
 @endphp
 
-@section('gateway_head')
+@push('head')
     <meta name="app-id" content="{{ $app_id }}">
     <meta name="app-key" content="{{ $app_key }}">
     <meta name="server-type" content="{{ $server_type }}">
@@ -59,9 +57,9 @@
             margin-bottom: 0.25rem;
         }
     </style>
-@endsection
+@endpush
 
-@section('gateway_content')
+<div class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden py-5 bg-white" id="tappay-credit-card-payment">
     <form action="{{ route('client.payments.response') }}" method="post" id="server-response">
         @csrf
         <input type="hidden" name="prime" id="prime-input">
@@ -85,31 +83,31 @@
     @include('portal.ninja2020.gateways.includes.payment_details')
 
     @component('portal.ninja2020.components.general.card-element', ['title' => ctrans('texts.pay_with')])
-        <ul class="list-none">
+        <ul class="list-none space-y-2">
             @if(count($tokens) > 0)
                 @foreach($tokens as $token)
-                <li class="py-2 cursor-pointer">
-                    <label class="mr-4">
-                        <input
-                            type="radio"
-                            data-token="{{ $token->hashed_id }}"
-                            name="payment-type"
-                            class="form-check-input text-indigo-600 rounded-full cursor-pointer toggle-payment-with-token"/>
-                        <span class="ml-1 cursor-pointer">**** {{ $token->meta?->last4 }}</span>
-                    </label>
-                </li>
+                    <li class="py-2 hover:bg-gray-100 rounded transition-colors duration-150">
+                        <label class="flex items-center cursor-pointer px-2">
+                            <input
+                                type="radio"
+                                data-token="{{ $token->hashed_id }}"
+                                name="payment-type"
+                                class="form-radio text-indigo-600 rounded-full cursor-pointer toggle-payment-with-token"/>
+                            <span class="ml-2 cursor-pointer">**** {{ $token->meta?->last4 }}</span>
+                        </label>
+                    </li>
                 @endforeach
             @endif
 
-            <li class="py-2 cursor-pointer">
-                <label>
+            <li class="py-2 hover:bg-gray-100 rounded transition-colors duration-150">
+                <label class="flex items-center cursor-pointer px-2">
                     <input
                         type="radio"
                         id="toggle-payment-with-credit-card"
-                        class="form-check-input text-indigo-600 rounded-full cursor-pointer"
+                        class="form-radio text-indigo-600 rounded-full cursor-pointer"
                         name="payment-type"
                         checked/>
-                    <span class="ml-1 cursor-pointer">{{ __('texts.new_card') }}</span>
+                    <span class="ml-2 cursor-pointer">{{ __('texts.new_card') }}</span>
                 </label>
             </li>
         </ul>
@@ -118,8 +116,7 @@
     @include('portal.ninja2020.gateways.tappay.includes.card_widget')
     @include('portal.ninja2020.gateways.includes.pay_now')
 
-@endsection
-
-@section('gateway_footer')
-    @vite('resources/js/clients/payments/tappay-credit-card.js')
-@endsection
+    @assets
+        @vite('resources/js/clients/payments/tappay-credit-card.js')
+    @endassets
+</div>

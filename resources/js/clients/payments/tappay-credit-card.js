@@ -17,9 +17,12 @@ class TapPayCreditCardPayment {
     }
 
     /**
-     * Setup TapPay SDK and event handlers
+     * Setup TapPay SDK and event listeners
      */
     setup() {
+        // Cache DOM elements early so we can surface configuration errors in the UI
+        this.cacheElements();
+
         // Get configuration from meta tags
         this.appId = this.getMetaContent('app-id');
         this.appKey = this.getMetaContent('app-key');
@@ -27,17 +30,20 @@ class TapPayCreditCardPayment {
 
         if (!this.appId || !this.appKey || !this.serverType) {
             console.error('TapPay configuration missing');
+
+            this.showConfigurationError();
             return;
         }
 
-        // Cache DOM elements
-        this.cacheElements();
-
-        // Initialize TapPay SDK
-        this.initializeTapPay();
-
-        // Setup event listeners
-        this.attachEventListeners();
+        this.waitForSDK()
+            .then(() => {
+                this.initializeTapPay();
+                this.attachEventListeners();
+            })
+            .catch(() => {
+                console.error('TapPay SDK failed to load');
+                this.showConfigurationError();
+            });
     }
 
     /**
@@ -79,10 +85,12 @@ class TapPayCreditCardPayment {
      */
     initializeTapPay() {
         // Setup SDK
-        TPDirect.setupSDK(this.appId, this.appKey, this.serverType);
+        const sdk = window.TPDirect;
+
+        sdk.setupSDK(this.appId, this.appKey, this.serverType);
 
         // Configure card fields
-        TPDirect.card.setup({
+        sdk.card.setup({
             fields: {
                 number: {
                     element: '#tappay-card-number',
@@ -120,7 +128,7 @@ class TapPayCreditCardPayment {
         });
 
         // Listen for field updates
-        TPDirect.card.onUpdate((update) => this.handleCardUpdate(update));
+        sdk.card.onUpdate((update) => this.handleCardUpdate(update));
     }
 
     /**
@@ -243,7 +251,9 @@ class TapPayCreditCardPayment {
         this.showProcessing();
 
         // Get prime token from TapPay
-        TPDirect.card.getPrime((result) => {
+        const sdk = window.TPDirect;
+
+        sdk.card.getPrime((result) => {
             if (result.status !== 0) {
                 return this.handleFailure('Card validation failed: ' + result.msg);
             }
@@ -276,6 +286,46 @@ class TapPayCreditCardPayment {
     /**
      * Hide processing state on pay button
      */
+    showConfigurationError() {
+        if (this.elements.errorsDiv) {
+            this.elements.errorsDiv.textContent = 'Payment configuration is incomplete. Please contact the merchant.';
+            this.elements.errorsDiv.hidden = false;
+        }
+
+        if (this.elements.tappayContainer) {
+            this.elements.tappayContainer.classList.add('hidden');
+        }
+
+        if (this.elements.payNowButton) {
+            this.elements.payNowButton.setAttribute('disabled', 'disabled');
+        }
+    }
+
+    waitForSDK() {
+        return new Promise((resolve, reject) => {
+            const maxAttempts = 40;
+            const interval = 100;
+            let attempts = 0;
+
+            const check = () => {
+                if (window.TPDirect) {
+                    resolve();
+                    return;
+                }
+
+                attempts += 1;
+                if (attempts > maxAttempts) {
+                    reject();
+                    return;
+                }
+
+                setTimeout(check, interval);
+            };
+
+            check();
+        });
+    }
+
     hideProcessing() {
         if (!this.elements.payNowButton) return;
 
