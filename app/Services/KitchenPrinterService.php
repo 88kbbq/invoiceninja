@@ -31,6 +31,100 @@ class KitchenPrinterService
         return $this->sendToPrinter($receiptData);
     }
 
+    /**
+     * Print invoice using WebPRNT service (TEST)
+     * Sends to Node.js service on port 3002
+     */
+    public function printInvoiceWebPRNT(Invoice $invoice): array
+    {
+        if (!$this->enabled) {
+            throw new Exception('Kitchen printer is disabled');
+        }
+
+        try {
+            $client = $invoice->client;
+            $lineItems = $invoice->line_items;
+
+            // Build JSON payload for WebPRNT service
+            $data = [
+                'orderId' => $invoice->number,
+                'date' => Carbon::parse($invoice->date)->format('Y-m-d'),
+                'arriveAt' => $invoice->custom_value1 ? $invoice->custom_value1 . ' 到達' : null,
+                'customer' => [
+                    'name' => $client->present()->name(),
+                    'phone' => $client->phone ?? '',
+                ],
+                'items' => [],
+                'publicNotes' => $invoice->public_notes ?? '',
+                'privateNotes' => $invoice->private_notes ?? '',
+            ];
+
+            // Format line items
+            foreach ($lineItems as $item) {
+                if (empty($item->product_key) && empty($item->notes)) {
+                    continue;
+                }
+
+                $itemName = $item->product_key ?: $item->notes;
+
+                // Split Chinese and English parts
+                $parts = explode(' ', $itemName, 2);
+                $nameZh = $parts[0] ?? '';
+                $nameEn = $parts[1] ?? '';
+
+                $data['items'][] = [
+                    'nameZh' => $nameZh,
+                    'nameEn' => $nameEn,
+                    'qty' => (int) $item->quantity,
+                ];
+            }
+
+            // Send to WebPRNT service
+            $ch = curl_init('http://localhost:3002/api/print/kitchen');
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/json',
+                    'x-api-key: 8875c71f87a5ebc5c5e38ab6c500cdeaa1e1cea50932c298db65739a933b4649',
+                ],
+                CURLOPT_POSTFIELDS => json_encode($data),
+                CURLOPT_TIMEOUT => 10,
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($httpCode !== 200) {
+                throw new Exception("WebPRNT service returned HTTP {$httpCode}: {$response}");
+            }
+
+            if ($curlError) {
+                throw new Exception("CURL error: {$curlError}");
+            }
+
+            $result = json_decode($response, true);
+
+            Log::info('WebPRNT print successful', [
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->number,
+                'job_id' => $result['jobId'] ?? null,
+            ]);
+
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('WebPRNT print failed', [
+                'invoice_id' => $invoice->id ?? null,
+                'invoice_number' => $invoice->number ?? null,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
     public function printQuote(Quote $quote): bool
     {
         if (!$this->enabled) {

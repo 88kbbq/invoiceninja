@@ -5,6 +5,8 @@
  * for Invoice Ninja payment gateway
  */
 
+import { wait, instant } from '../wait';
+
 class TapPayCreditCardPayment {
     constructor() {
         this.canGetPrime = false;
@@ -12,18 +14,6 @@ class TapPayCreditCardPayment {
         this.appKey = null;
         this.serverType = null;
         this.elements = {};
-    }
-
-    /**
-     * Initialize the payment form
-     */
-    init() {
-        // Wait for DOM to be ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this.setup());
-        } else {
-            this.setup();
-        }
     }
 
     /**
@@ -66,16 +56,16 @@ class TapPayCreditCardPayment {
             cardholderName: document.getElementById('cardholder-name'),
             cardholderNameInput: document.getElementById('cardholder-name-input'),
             primeInput: document.getElementById('prime-input'),
-            storeCardInput: document.getElementById('store-card-input'),
-            payButton: document.getElementById('pay-button'),
+            payNowButton: document.getElementById('pay-now'),
             serverResponseForm: document.getElementById('server-response'),
-            tappayContainer: document.getElementById('tappay-container'),
-            tokenContainer: document.getElementById('pay-now-with-token--container'),
+            tappayContainer: document.getElementById('tappay--payment-container'),
+            saveCardContainer: document.getElementById('save-card--container'),
             tokenInput: document.querySelector('input[name="token"]'),
-            saveCardCheckbox: document.querySelector('input[name="store_card"]'),
+            storeCardInput: document.querySelector('input[name="store_card"]'),
+            saveCardCheckbox: document.querySelector('input[name="token-billing-checkbox"]'),
             toggleTokenButtons: document.querySelectorAll('.toggle-payment-with-token'),
             toggleNewCardButton: document.getElementById('toggle-payment-with-credit-card'),
-            payNowTokenButton: document.getElementById('pay-now-with-token'),
+            errorsDiv: document.getElementById('errors'),
             errorElements: {
                 cardNumber: document.getElementById('card-number-error'),
                 cardExpiry: document.getElementById('card-expiry-error'),
@@ -137,45 +127,43 @@ class TapPayCreditCardPayment {
      * Attach all event listeners
      */
     attachEventListeners() {
-        // Cardholder name input
-        if (this.elements.cardholderName) {
-            this.elements.cardholderName.addEventListener('input', () => {
-                this.updatePayButtonState();
-            });
-        }
-
-        // Pay button
-        if (this.elements.payButton) {
-            this.elements.payButton.addEventListener('click', () => {
-                this.handlePayButtonClick();
-            });
-        }
-
-        // Payment type toggles
+        // Payment type toggle - use tokens
         this.elements.toggleTokenButtons.forEach(button => {
-            button.addEventListener('change', (e) => {
-                this.handleTokenSelection(e.target);
+            button.addEventListener('click', () => {
+                this.elements.tappayContainer.classList.add('hidden');
+                if (this.elements.saveCardContainer) {
+                    this.elements.saveCardContainer.style.display = 'none';
+                }
+                this.elements.tokenInput.value = button.dataset.token;
             });
         });
 
+        // Payment type toggle - use new card
         if (this.elements.toggleNewCardButton) {
-            this.elements.toggleNewCardButton.addEventListener('change', () => {
-                this.handleNewCardSelection();
+            this.elements.toggleNewCardButton.addEventListener('click', () => {
+                this.elements.tappayContainer.classList.remove('hidden');
+                if (this.elements.saveCardContainer) {
+                    this.elements.saveCardContainer.style.display = 'grid';
+                }
+                this.elements.tokenInput.value = '';
             });
         }
 
-        // Save card checkbox
-        if (this.elements.saveCardCheckbox) {
-            this.elements.saveCardCheckbox.addEventListener('change', (e) => {
-                this.elements.storeCardInput.value = e.target.checked ? '1' : '0';
-            });
-        }
+        // Pay now button
+        if (this.elements.payNowButton) {
+            this.elements.payNowButton.addEventListener('click', () => {
+                try {
+                    // Check if using saved token
+                    if (this.elements.tokenInput.value) {
+                        return this.completePaymentUsingToken();
+                    }
 
-        // Pay now with token button
-        if (this.elements.payNowTokenButton) {
-            this.elements.payNowTokenButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.submitForm();
+                    // Otherwise use new card
+                    return this.completePaymentWithoutToken();
+                } catch (error) {
+                    console.error('Payment error:', error);
+                    this.handleFailure(error.message);
+                }
             });
         }
     }
@@ -186,9 +174,6 @@ class TapPayCreditCardPayment {
     handleCardUpdate(update) {
         this.canGetPrime = update.canGetPrime;
 
-        // Update pay button state
-        this.updatePayButtonState();
-
         // Update field errors
         this.updateFieldError('number', update.status.number, 'cardNumber');
         this.updateFieldError('expiry', update.status.expiry, 'cardExpiry');
@@ -198,16 +183,6 @@ class TapPayCreditCardPayment {
         this.updateFieldStyle('tappay-card-number', update.status.number);
         this.updateFieldStyle('tappay-card-expiry', update.status.expiry);
         this.updateFieldStyle('tappay-card-cvc', update.status.ccv);
-    }
-
-    /**
-     * Update pay button enabled/disabled state
-     */
-    updatePayButtonState() {
-        if (!this.elements.payButton || !this.elements.cardholderName) return;
-
-        const cardholderName = this.elements.cardholderName.value.trim();
-        this.elements.payButton.disabled = !(this.canGetPrime && cardholderName);
     }
 
     /**
@@ -245,40 +220,41 @@ class TapPayCreditCardPayment {
     }
 
     /**
-     * Handle pay button click (new card payment)
+     * Complete payment using saved token
      */
-    handlePayButtonClick() {
+    completePaymentUsingToken() {
+        this.showProcessing();
+        this.submitForm();
+    }
+
+    /**
+     * Complete payment without token (new card)
+     */
+    completePaymentWithoutToken() {
         if (!this.canGetPrime) {
-            alert('Please complete all card fields');
-            return;
+            return this.handleFailure('Please complete all card fields');
         }
 
         const cardholderName = this.elements.cardholderName.value.trim();
         if (!cardholderName) {
-            alert('Please enter cardholder name');
-            return;
+            return this.handleFailure('Please enter cardholder name');
         }
 
-        // Disable button and show processing state
-        this.elements.payButton.disabled = true;
-        const originalText = this.elements.payButton.textContent;
-        this.elements.payButton.textContent = 'Processing...';
+        this.showProcessing();
 
         // Get prime token from TapPay
         TPDirect.card.getPrime((result) => {
             if (result.status !== 0) {
-                alert('Card validation failed: ' + result.msg);
-                this.elements.payButton.disabled = false;
-                this.elements.payButton.textContent = originalText;
-                return;
+                return this.handleFailure('Card validation failed: ' + result.msg);
             }
 
             // Set hidden form fields
             this.elements.primeInput.value = result.card.prime;
             this.elements.cardholderNameInput.value = cardholderName;
 
-            if (this.elements.saveCardCheckbox) {
-                this.elements.storeCardInput.value = this.elements.saveCardCheckbox.checked ? '1' : '0';
+            // Handle save card checkbox
+            if (this.elements.saveCardCheckbox && this.elements.saveCardCheckbox.checked) {
+                this.elements.storeCardInput.value = this.elements.saveCardCheckbox.value;
             }
 
             // Submit form
@@ -287,23 +263,37 @@ class TapPayCreditCardPayment {
     }
 
     /**
-     * Handle token payment selection
+     * Show processing state on pay button
      */
-    handleTokenSelection(button) {
-        if (button.checked) {
-            this.elements.tappayContainer.classList.add('hidden');
-            this.elements.tokenContainer.classList.remove('hidden');
-            this.elements.tokenInput.value = button.dataset.token;
-        }
+    showProcessing() {
+        if (!this.elements.payNowButton) return;
+
+        this.elements.payNowButton.disabled = true;
+        this.elements.payNowButton.querySelector('svg').classList.remove('hidden');
+        this.elements.payNowButton.querySelector('span').classList.add('hidden');
     }
 
     /**
-     * Handle new card selection
+     * Hide processing state on pay button
      */
-    handleNewCardSelection() {
-        this.elements.tappayContainer.classList.remove('hidden');
-        this.elements.tokenContainer.classList.add('hidden');
-        this.elements.tokenInput.value = '';
+    hideProcessing() {
+        if (!this.elements.payNowButton) return;
+
+        this.elements.payNowButton.disabled = false;
+        this.elements.payNowButton.querySelector('svg').classList.add('hidden');
+        this.elements.payNowButton.querySelector('span').classList.remove('hidden');
+    }
+
+    /**
+     * Handle payment failure
+     */
+    handleFailure(message) {
+        if (this.elements.errorsDiv) {
+            this.elements.errorsDiv.textContent = message;
+            this.elements.errorsDiv.hidden = false;
+        }
+
+        this.hideProcessing();
     }
 
     /**
@@ -314,11 +304,31 @@ class TapPayCreditCardPayment {
             this.elements.serverResponseForm.submit();
         }
     }
+
+    /**
+     * Initialize and handle the payment flow
+     */
+    handle() {
+        this.setup();
+
+        // If there are saved tokens, click the first one by default
+        const tokens = document.querySelectorAll('input.toggle-payment-with-token');
+        if (tokens.length > 0) {
+            tokens[0].click();
+        }
+    }
 }
 
-// Initialize payment form
-const tapPayPayment = new TapPayCreditCardPayment();
-tapPayPayment.init();
+/**
+ * Bootstrap the payment form
+ */
+function boot() {
+    const tappay = new TapPayCreditCardPayment();
+    tappay.handle();
+}
+
+// Initialize when DOM is ready
+instant() ? boot() : wait('#tappay--payment-container').then(() => boot());
 
 // Export for potential reuse
 export default TapPayCreditCardPayment;

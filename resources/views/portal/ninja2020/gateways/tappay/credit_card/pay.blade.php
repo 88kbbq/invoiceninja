@@ -1,5 +1,18 @@
 @extends('portal.ninja2020.layout.payments', ['gateway_title' => 'Credit card', 'card_title' => 'Credit card'])
 
+@php
+    $gateway_instance = $gateway instanceof \App\Models\CompanyGateway ? $gateway : $gateway->company_gateway;
+    $token_billing_string = 'true';
+
+    if($gateway_instance->token_billing == 'off' || $gateway_instance->token_billing == 'optin'){
+        $token_billing_string = 'false';
+    }
+
+    if (isset($pre_payment) && $pre_payment == '1' && isset($is_recurring) && $is_recurring == '1') {
+        $token_billing_string = 'true';
+    }
+@endphp
+
 @section('gateway_head')
     <meta name="app-id" content="{{ $app_id }}">
     <meta name="app-key" content="{{ $app_key }}">
@@ -11,18 +24,6 @@
     <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.14.0"></script>
 
     <style>
-        /* Fix duplicate sidebar issue - force hide mobile sidebar on payment pages */
-        div.md\:hidden,
-        .md\:hidden,
-        [class*="md:hidden"] {
-            display: none !important;
-        }
-
-        /* Also ensure only desktop sidebar shows */
-        .main_layout > div.md\:hidden {
-            display: none !important;
-        }
-
         .tpfield {
             height: 40px;
             width: 100%;
@@ -50,11 +51,6 @@
             margin-top: 0.25rem;
         }
 
-        #pay-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
         .input-label {
             display: block;
             font-size: 0.875rem;
@@ -70,9 +66,9 @@
         @csrf
         <input type="hidden" name="prime" id="prime-input">
         <input type="hidden" name="cardholder_name" id="cardholder-name-input">
-        <input type="hidden" name="store_card" id="store-card-input">
+        <input type="hidden" name="store_card" value="{{ $token_billing_string }}">
         <input type="hidden" name="payment_hash" value="{{ $payment_hash }}">
-        <input type="hidden" name="company_gateway_id" value="{{ $company_gateway->id }}">
+        <input type="hidden" name="company_gateway_id" value="{{ $gateway->company_gateway->id }}">
         <input type="hidden" name="payment_method_id" value="{{ $payment_method_id }}">
         <input type="hidden" name="value" value="{{ $value }}">
         <input type="hidden" name="raw_value" value="{{ $raw_value }}">
@@ -80,102 +76,48 @@
         <input type="hidden" name="token" value="">
     </form>
 
+    <div class="alert alert-failure mb-4" hidden id="errors"></div>
+
     @component('portal.ninja2020.components.general.card-element', ['title' => ctrans('texts.payment_type')])
-        {{ ctrans('texts.credit_card') }} (TapPay)
+        {{ ctrans('texts.credit_card') }}
     @endcomponent
 
     @include('portal.ninja2020.gateways.includes.payment_details')
 
     @component('portal.ninja2020.components.general.card-element', ['title' => ctrans('texts.pay_with')])
-        @if(count($tokens) > 0)
-            @foreach($tokens as $token)
-                <label class="mr-4">
+        <ul class="list-none">
+            @if(count($tokens) > 0)
+                @foreach($tokens as $token)
+                <li class="py-2 cursor-pointer">
+                    <label class="mr-4">
+                        <input
+                            type="radio"
+                            data-token="{{ $token->hashed_id }}"
+                            name="payment-type"
+                            class="form-check-input text-indigo-600 rounded-full cursor-pointer toggle-payment-with-token"/>
+                        <span class="ml-1 cursor-pointer">**** {{ $token->meta?->last4 }}</span>
+                    </label>
+                </li>
+                @endforeach
+            @endif
+
+            <li class="py-2 cursor-pointer">
+                <label>
                     <input
                         type="radio"
-                        data-token="{{ $token->hashed_id }}"
+                        id="toggle-payment-with-credit-card"
+                        class="form-check-input text-indigo-600 rounded-full cursor-pointer"
                         name="payment-type"
-                        class="form-radio cursor-pointer toggle-payment-with-token"/>
-                    <span class="ml-1 cursor-pointer">**** {{ $token->meta?->last4 }}</span>
+                        checked/>
+                    <span class="ml-1 cursor-pointer">{{ __('texts.new_card') }}</span>
                 </label>
-            @endforeach
-        @endif
-
-        <label>
-            <input
-                type="radio"
-                id="toggle-payment-with-credit-card"
-                class="form-radio cursor-pointer"
-                name="payment-type"
-                checked/>
-            <span class="ml-1 cursor-pointer">{{ __('texts.new_card') }}</span>
-        </label>
+            </li>
+        </ul>
     @endcomponent
 
-    @include('portal.ninja2020.gateways.includes.save_card')
+    @include('portal.ninja2020.gateways.tappay.includes.card_widget')
+    @include('portal.ninja2020.gateways.includes.pay_now')
 
-    @component('portal.ninja2020.components.general.card-element-single')
-        <div id="tappay-container">
-            <!-- Cardholder Name -->
-            <div class="mb-4">
-                <label for="cardholder-name" class="input-label">
-                    {{ ctrans('texts.cardholder_name') }}
-                </label>
-                <input
-                    type="text"
-                    id="cardholder-name"
-                    name="cardholder_name"
-                    class="input w-full"
-                    style="height: 40px; width: 100%; border: 1px solid #e2e8f0; border-radius: 0.375rem; padding: 0.5rem 0.75rem; font-size: 0.875rem;"
-                    placeholder="{{ $cardholder_name }}"
-                    value="{{ $cardholder_name }}"
-                    required
-                    autocomplete="cc-name">
-            </div>
-
-            <!-- Card Number (TapPay Field) -->
-            <div class="mb-4">
-                <label class="input-label">
-                    {{ ctrans('texts.card_number') }}
-                </label>
-                <div class="tpfield" id="tappay-card-number"></div>
-                <div id="card-number-error" class="field-error" style="display: none;"></div>
-            </div>
-
-            <!-- Expiration Date (TapPay Field) -->
-            <div class="mb-4">
-                <label class="input-label">
-                    {{ ctrans('texts.expiration_date') }}
-                </label>
-                <div class="tpfield" id="tappay-card-expiry"></div>
-                <div id="card-expiry-error" class="field-error" style="display: none;"></div>
-            </div>
-
-            <!-- CVV (TapPay Field) -->
-            <div class="mb-4">
-                <label class="input-label">
-                    {{ ctrans('texts.cvv') }}
-                </label>
-                <div class="tpfield" id="tappay-card-cvc"></div>
-                <div id="card-cvc-error" class="field-error" style="display: none;"></div>
-            </div>
-
-            <!-- Pay Button -->
-            <button
-                type="button"
-                id="pay-button"
-                class="button button--primary button--block"
-                style="width: 100%; margin-top: 1rem;"
-                disabled>
-                {{ ctrans('texts.pay') }} {{ App\Utils\Number::formatMoney($total['amount_with_fee'], $client) }}
-            </button>
-        </div>
-    @endcomponent
-
-    @component('portal.ninja2020.components.general.card-element-single')
-        <div class="hidden" id="pay-now-with-token--container">
-            @include('portal.ninja2020.gateways.includes.pay_now', ['id' => 'pay-now-with-token'])
-        </div>
-    @endcomponent
 @endsection
 
 @section('gateway_footer')

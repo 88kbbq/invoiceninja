@@ -282,6 +282,9 @@ Route::group(['middleware' => ['throttle:api', 'token_auth', 'valid_json','local
     Route::get('kitchen/test-connection', [KitchenPrinterController::class, 'testConnection'])->name('kitchen.test_connection');
     Route::get('kitchen/test-print', [KitchenPrinterController::class, 'testPrint'])->name('kitchen.test_print');
 
+    // WebPRNT Test Route (port 3002) - For side-by-side comparison
+    Route::post('kitchen-print/invoice-webprnt/{invoice}', [KitchenPrinterController::class, 'printInvoiceWebPRNT'])->name('invoices.print_kitchen_webprnt');
+
     Route::resource('invoices', InvoiceController::class); // name = (invoices. index / create / show / update / destroy / edit
     Route::get('invoices/{invoice}/delivery_note', [InvoiceController::class, 'deliveryNote'])->name('invoices.delivery_note');
 

@@ -50,6 +50,43 @@ class KitchenPrinterController extends BaseController
         }
     }
 
+    /**
+     * TEST: Print invoice using WebPRNT service (port 3002)
+     * For side-by-side comparison with ESC/POS (port 3001)
+     */
+    public function printInvoiceWebPRNT(ShowInvoiceRequest $request, Invoice $invoice)
+    {
+        try {
+            // Send to WebPRNT service
+            $result = $this->printerService->printInvoiceWebPRNT($invoice);
+
+            // Log the action
+            Log::info('Kitchen receipt printed via WebPRNT', [
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->number,
+                'user_id' => auth()->id(),
+                'job_id' => $result['jobId'] ?? null,
+            ]);
+
+            return response()->json([
+                'message' => 'Sent to kitchen printer via WebPRNT',
+                'invoice_number' => $invoice->number,
+                'protocol' => 'StarWebPRNT',
+                'job_id' => $result['jobId'] ?? null,
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Kitchen print failed (WebPRNT)', [
+                'invoice_id' => $invoice->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to print via WebPRNT: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function printQuote(Request $request, Quote $quote)
     {
         try {
