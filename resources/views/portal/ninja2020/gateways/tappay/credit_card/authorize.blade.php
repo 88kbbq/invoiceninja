@@ -129,7 +129,7 @@
                         'color': '#1f2937',
                         'font-size': '14px',
                         'font-family': "'Open Sans', 'Helvetica Neue', Arial, sans-serif",
-                        'line-height': '1.5',
+                        'line-height': '1.5rem',
                         'letter-spacing': '0.02em',
                         'background-color': 'transparent'
                     },
