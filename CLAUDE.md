@@ -594,6 +594,230 @@ Order #: 880006
 
 ---
 
+## PDF Generation
+
+### Overview
+
+Invoice Ninja v5 generates PDF invoices, quotes, and other documents using server-side rendering. The system supports multiple PDF engines with different capabilities.
+
+**Current Configuration:** SnapPDF with Chromium browser (best for Chinese fonts)
+
+### PDF Generator Options
+
+1. **SnapPDF** (Default - RECOMMENDED)
+   - Uses headless Chromium browser for rendering
+   - ✅ Best quality for complex layouts
+   - ✅ Excellent Chinese/CJK font support
+   - ✅ Full CSS/modern web standards support
+   - ⚠️ Requires Chromium binary installed
+   - Package: `beganovich/snappdf`
+
+2. **hosted_ninja**
+   - Uses Invoice Ninja's cloud PDF service
+   - ✅ No local dependencies required
+   - ✅ Good Chinese font support
+   - ⚠️ Sends invoice data to external service
+   - ⚠️ Requires active internet connection
+
+3. **phantom** (Legacy)
+   - Uses PhantomJS service
+   - ⚠️ Deprecated, not recommended
+   - Moderate Chinese support
+
+### System Requirements
+
+**For SnapPDF (Production Setup):**
+
+1. **Chromium Browser:**
+   ```bash
+   # Ubuntu/Debian
+   apt-get update && apt-get install -y chromium-browser
+
+   # Verify installation
+   chromium --version
+   ```
+
+2. **Chinese Fonts (for CJK support):**
+   ```bash
+   # Ubuntu/Debian
+   apt-get install -y fonts-noto-cjk
+
+   # Verify fonts installed
+   fc-list :lang=zh | head -10
+   ```
+
+3. **Environment Configuration:**
+   ```env
+   # .env
+   PDF_GENERATOR=snappdf
+   SNAPPDF_CHROMIUM_PATH=/snap/bin/chromium
+   ```
+
+**Production Server Status:**
+- ✅ Chromium 141.0.7390.54 installed at `/snap/bin/chromium`
+- ✅ Noto Sans CJK fonts installed (Simplified & Traditional Chinese)
+- ✅ Noto Serif CJK fonts installed (Simplified & Traditional Chinese)
+- ✅ SnapPDF configured in `.env`
+
+### Configuration
+
+**Environment Variables:**
+```env
+# PDF Generator engine (snappdf, hosted_ninja, phantom)
+PDF_GENERATOR=snappdf
+
+# Path to Chromium binary (required for SnapPDF)
+SNAPPDF_CHROMIUM_PATH=/snap/bin/chromium
+
+# Legacy PhantomJS settings (not used with SnapPDF)
+PHANTOMJS_KEY='key'
+PHANTOMJS_SECRET=secret
+```
+
+**Chromium Binary Locations:**
+- Ubuntu Snap: `/snap/bin/chromium`
+- Debian package: `/usr/bin/chromium-browser`
+- Custom build: Specify full path in `SNAPPDF_CHROMIUM_PATH`
+
+### How It Works
+
+**SnapPDF Rendering Flow:**
+```
+Invoice Data
+  → Laravel generates HTML
+    → PdfService (app/Services/Pdf/PdfService.php)
+      → SnapPDF library
+        → Headless Chromium
+          → Renders with system fonts
+            → Returns PDF binary
+              → Stored/downloaded
+```
+
+**Key Files:**
+- `app/Services/Pdf/PdfService.php` - Main PDF service
+- `app/Utils/Traits/Pdf/PdfMaker.php` - SnapPDF integration
+- `app/Jobs/Entity/CreateRawPdf.php` - Background PDF generation
+
+### Chinese Font Support
+
+**Why SnapPDF is Best for Chinese:**
+
+1. **Real Browser Rendering:**
+   - Uses actual Chromium engine
+   - Full Unicode support
+   - Proper font fallback chains
+
+2. **System Font Access:**
+   - Automatically uses installed system fonts
+   - Noto CJK fonts support all Chinese characters
+   - Multiple weights (Regular, Bold, Black)
+
+3. **Font Coverage:**
+   - Simplified Chinese (SC)
+   - Traditional Chinese (TC)
+   - Japanese (JP)
+   - Korean (KR)
+
+**Installed Fonts on Production:**
+```
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc
+/usr/share/fonts/opentype/noto/NotoSansCJK-Black.ttc
+/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc
+/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc
+```
+
+### Troubleshooting
+
+**Error: "Browser binary not found"**
+```
+Cause: Chromium not installed or path incorrect
+Solution:
+1. Install Chromium: apt-get install chromium-browser
+2. Set path in .env: SNAPPDF_CHROMIUM_PATH=/snap/bin/chromium
+3. Clear config cache: php artisan config:cache
+```
+
+**Error: Chinese characters show as boxes**
+```
+Cause: CJK fonts not installed
+Solution:
+1. Install fonts: apt-get install fonts-noto-cjk
+2. Verify: fc-list :lang=zh
+3. Restart PHP-FPM: systemctl reload php8.2-fpm
+```
+
+**Error: PDF generation is slow**
+```
+Cause: Chromium startup overhead
+Solutions:
+1. Use queue for background processing
+2. Consider hosted_ninja for low-traffic sites
+3. Optimize HTML templates (reduce complexity)
+```
+
+### Testing
+
+**Generate test PDF:**
+```bash
+# Via Tinker
+php artisan tinker
+>>> $invoice = App\Models\Invoice::first();
+>>> $invitation = $invoice->invitations->first();
+>>> $pdf = (new App\Jobs\Entity\CreateRawPdf($invitation))->handle();
+>>> file_put_contents('test.pdf', $pdf);
+```
+
+**Check configuration:**
+```bash
+php artisan tinker
+>>> config('ninja.pdf_generator')  // Should return 'snappdf'
+>>> config('ninja.snappdf_chromium_path')  // Should return '/snap/bin/chromium'
+```
+
+### Performance Optimization
+
+**For high-volume PDF generation:**
+
+1. **Use Queue Workers:**
+   ```bash
+   # config/queue.php
+   'default' => 'redis',
+
+   # Run workers
+   php artisan queue:work --queue=default
+   ```
+
+2. **Cache Generated PDFs:**
+   - PDFs are cached in `storage/app/public/`
+   - Regenerate only when invoice changes
+   - Set `DELETE_PDF_DAYS` in `.env` for cleanup
+
+3. **Chromium Arguments:**
+   - Already optimized in `PdfMaker.php`
+   - Headless mode, no GPU, disabled features
+   - Fast rendering for server environments
+
+### Alternative: Using hosted_ninja
+
+**Switch to cloud PDF generation:**
+```env
+# .env
+PDF_GENERATOR=hosted_ninja
+```
+
+**Pros:**
+- No Chromium installation needed
+- No font management
+- Faster for low-traffic sites
+
+**Cons:**
+- Invoice data sent to Invoice Ninja servers
+- Requires internet connection
+- Less control over rendering
+
+---
+
 ## Best Coding Practices
 
 ### General Principles
