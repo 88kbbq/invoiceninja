@@ -13,31 +13,36 @@
 
     @unless(isset($show_card_element) && $show_card_element == false)
         @component('portal.ninja2020.components.general.card-element-single')
-            <!-- Card Number (TapPay Field) -->
-            <div class="mb-4">
-                <label class="input-label">
-                    {{ ctrans('texts.card_number') }}
-                </label>
-                <div class="tpfield" id="tappay-card-number"></div>
-                <div id="card-number-error" class="field-error" style="display: none;"></div>
-            </div>
+            <div class="space-y-4">
+                <div>
+                    <div class="tpfield-row">
+                        <label class="tpfield-label">
+                            {{ ctrans('texts.card_number') }}
+                        </label>
+                        <div class="tpfield tpfield--number" id="tappay-card-number"></div>
+                    </div>
+                    <div id="card-number-error" class="field-error hidden"></div>
+                </div>
 
-            <!-- Expiration Date (TapPay Field) -->
-            <div class="mb-4">
-                <label class="input-label">
-                    {{ ctrans('texts.expiration_date') }}
-                </label>
-                <div class="tpfield" id="tappay-card-expiry"></div>
-                <div id="card-expiry-error" class="field-error" style="display: none;"></div>
-            </div>
+                <div>
+                    <div class="tpfield-row">
+                        <label class="tpfield-label">
+                            {{ ctrans('texts.expiration_date') }}
+                        </label>
+                        <div class="tpfield tpfield--expiry" id="tappay-card-expiry"></div>
+                    </div>
+                    <div id="card-expiry-error" class="field-error hidden"></div>
+                </div>
 
-            <!-- CVV (TapPay Field) -->
-            <div class="mb-4">
-                <label class="input-label">
-                    {{ ctrans('texts.cvv') }}
-                </label>
-                <div class="tpfield" id="tappay-card-cvc"></div>
-                <div id="card-cvc-error" class="field-error" style="display: none;"></div>
+                <div>
+                    <div class="tpfield-row">
+                        <label class="tpfield-label">
+                            {{ ctrans('texts.cvv') }}
+                        </label>
+                        <div class="tpfield tpfield--cvc" id="tappay-card-cvc"></div>
+                    </div>
+                    <div id="card-cvc-error" class="field-error hidden"></div>
+                </div>
             </div>
         @endcomponent
     @endunless

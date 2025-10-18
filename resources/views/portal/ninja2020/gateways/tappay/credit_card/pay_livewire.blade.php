@@ -20,43 +20,6 @@
     <meta name="payment-hash" content="{{ $payment_hash }}">
 
     <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.19.2"></script>
-
-    <style>
-        .tpfield {
-            height: 40px;
-            width: 100%;
-            border: 1px solid #e2e8f0;
-            border-radius: 0.375rem;
-            padding: 0.5rem 0.75rem;
-            font-size: 0.875rem;
-            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-            background-color: white;
-        }
-
-        .tpfield:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-
-        .tpfield.has-error {
-            border-color: #ef4444;
-        }
-
-        .field-error {
-            color: #ef4444;
-            font-size: 0.75rem;
-            margin-top: 0.25rem;
-        }
-
-        .input-label {
-            display: block;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #374151;
-            margin-bottom: 0.25rem;
-        }
-    </style>
 @endpush
 
 <div class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden py-5 bg-white" id="tappay-credit-card-payment" data-sdk-src="https://js.tappaysdk.com/sdk/tpdirect/v5.19.2" data-app-id="{{ $app_id }}" data-app-key="{{ $app_key }}" data-server-type="{{ $server_type }}">

@@ -21,3 +21,37 @@
 .form-select {
     @apply border border-gray-300;
 }
+
+.tpfield-row {
+    @apply flex items-center gap-3;
+}
+
+.tpfield-label {
+    @apply text-sm text-gray-600 whitespace-nowrap;
+}
+
+.tpfield {
+    @apply border border-gray-300 rounded bg-white px-3 py-2 text-sm transition;
+    min-height: 40px;
+    flex-shrink: 0;
+}
+
+.tpfield--number {
+    width: 19ch;
+}
+
+.tpfield--expiry {
+    width: 8ch;
+}
+
+.tpfield--cvc {
+    width: 4ch;
+}
+
+.tpfield.has-error {
+    @apply border-red-500;
+}
+
+.field-error {
+    @apply text-red-500 text-xs mt-1;
+}

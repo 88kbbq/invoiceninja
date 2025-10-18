@@ -154,10 +154,17 @@ class TapPayCreditCardPayment {
             styles: {
                 'input': {
                     'color': '#1f2937',
-                    'font-size': '14px'
+                    'font-size': '14px',
+                    'font-family': "'Open Sans', 'Helvetica Neue', Arial, sans-serif",
+                    'line-height': '1.5',
+                    'letter-spacing': '0.02em',
+                    'background-color': 'transparent'
                 },
                 ':focus': {
                     'color': '#1f2937'
+                },
+                'input::placeholder': {
+                    'color': '#9ca3af'
                 },
                 '.valid': {
                     'color': '#059669'

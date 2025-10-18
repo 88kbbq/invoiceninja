@@ -16,40 +16,6 @@
 
                 <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.14.0"></script>
 
-                <style>
-                    .tpfield {
-                        height: 40px;
-                        width: 100%;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 0.375rem;
-                        padding: 0.5rem 0.75rem;
-                        font-size: 0.875rem;
-                        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-                        background-color: white;
-                    }
-
-                    .tpfield:focus {
-                        outline: none;
-                        border-color: #3b82f6;
-                        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-                    }
-
-                    .tpfield.has-error {
-                        border-color: #ef4444;
-                    }
-
-                    .field-error {
-                        color: #ef4444;
-                        font-size: 0.75rem;
-                        margin-top: 0.25rem;
-                    }
-
-                    #authorize-button:disabled {
-                        opacity: 0.5;
-                        cursor: not-allowed;
-                    }
-                </style>
-
                 <form action="{{ route('client.payment_methods.store', ['method' => App\Models\GatewayType::CREDIT_CARD]) }}" method="post" id="authorize-form">
                     @csrf
                     <input type="hidden" name="prime" id="prime-input">
@@ -71,38 +37,45 @@
                             id="cardholder-name"
                             name="cardholder_name"
                             class="input w-full"
-                            style="height: 40px; width: 100%; border: 1px solid #e2e8f0; border-radius: 0.375rem; padding: 0.5rem 0.75rem; font-size: 0.875rem;"
                             placeholder="{{ $cardholder_name }}"
                             value="{{ $cardholder_name }}"
                             required
                             autocomplete="cc-name">
                     </div>
 
-                    <!-- Card Number (TapPay Field) -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ ctrans('texts.card_number') }}
-                        </label>
-                        <div class="tpfield" id="tappay-card-number"></div>
-                        <div id="card-number-error" class="field-error" style="display: none;"></div>
-                    </div>
+                    <div class="space-y-4">
+                        <!-- Card Number (TapPay Field) -->
+                        <div>
+                            <div class="tpfield-row">
+                                <label class="tpfield-label">
+                                    {{ ctrans('texts.card_number') }}
+                                </label>
+                                <div class="tpfield tpfield--number" id="tappay-card-number"></div>
+                            </div>
+                            <div id="card-number-error" class="field-error hidden"></div>
+                        </div>
 
-                    <!-- Expiration Date (TapPay Field) -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ ctrans('texts.expiration_date') }}
-                        </label>
-                        <div class="tpfield" id="tappay-card-expiry"></div>
-                        <div id="card-expiry-error" class="field-error" style="display: none;"></div>
-                    </div>
+                        <!-- Expiration Date (TapPay Field) -->
+                        <div>
+                            <div class="tpfield-row">
+                                <label class="tpfield-label">
+                                    {{ ctrans('texts.expiration_date') }}
+                                </label>
+                                <div class="tpfield tpfield--expiry" id="tappay-card-expiry"></div>
+                            </div>
+                            <div id="card-expiry-error" class="field-error hidden"></div>
+                        </div>
 
-                    <!-- CVV (TapPay Field) -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ ctrans('texts.cvv') }}
-                        </label>
-                        <div class="tpfield" id="tappay-card-cvc"></div>
-                        <div id="card-cvc-error" class="field-error" style="display: none;"></div>
+                        <!-- CVV (TapPay Field) -->
+                        <div>
+                            <div class="tpfield-row">
+                                <label class="tpfield-label">
+                                    {{ ctrans('texts.cvv') }}
+                                </label>
+                                <div class="tpfield tpfield--cvc" id="tappay-card-cvc"></div>
+                            </div>
+                            <div id="card-cvc-error" class="field-error hidden"></div>
+                        </div>
                     </div>
 
                     <!-- Authorize Button -->
@@ -154,10 +127,17 @@
                 styles: {
                     'input': {
                         'color': '#1f2937',
-                        'font-size': '14px'
+                        'font-size': '14px',
+                        'font-family': "'Open Sans', 'Helvetica Neue', Arial, sans-serif",
+                        'line-height': '1.5',
+                        'letter-spacing': '0.02em',
+                        'background-color': 'transparent'
                     },
                     ':focus': {
                         'color': '#1f2937'
+                    },
+                    'input::placeholder': {
+                        'color': '#9ca3af'
                     },
                     '.valid': {
                         'color': '#059669'
