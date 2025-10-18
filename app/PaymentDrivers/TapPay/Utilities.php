@@ -40,7 +40,13 @@ trait Utilities
      */
     public function getPublishableKey(): string
     {
-        return $this->company_gateway->getConfigField('appKey');
+        $testKey = (string) ($this->company_gateway->getConfigField('testAppKey') ?? '');
+
+        if ($this->company_gateway->getConfigField('testMode')) {
+            return $testKey !== '' ? $testKey : (string) ($this->company_gateway->getConfigField('appKey') ?? '');
+        }
+
+        return (string) ($this->company_gateway->getConfigField('appKey') ?? '');
     }
 
     /**
@@ -50,7 +56,45 @@ trait Utilities
      */
     public function getAppId(): string
     {
-        return $this->company_gateway->getConfigField('appId');
+        $testId = (string) ($this->company_gateway->getConfigField('testAppId') ?? '');
+
+        if ($this->company_gateway->getConfigField('testMode')) {
+            return $testId !== '' ? $testId : (string) ($this->company_gateway->getConfigField('appId') ?? '');
+        }
+
+        return (string) ($this->company_gateway->getConfigField('appId') ?? '');
+    }
+
+    /**
+     * Get Partner Key for backend API requests
+     *
+     * @return string
+     */
+    public function getPartnerKey(): string
+    {
+        $testKey = (string) ($this->company_gateway->getConfigField('testPartnerKey') ?? '');
+
+        if ($this->company_gateway->getConfigField('testMode')) {
+            return $testKey !== '' ? $testKey : (string) ($this->company_gateway->getConfigField('partnerKey') ?? '');
+        }
+
+        return (string) ($this->company_gateway->getConfigField('partnerKey') ?? '');
+    }
+
+    /**
+     * Get Merchant ID for backend API requests
+     *
+     * @return string
+     */
+    public function getMerchantId(): string
+    {
+        $testId = (string) ($this->company_gateway->getConfigField('testMerchantId') ?? '');
+
+        if ($this->company_gateway->getConfigField('testMode')) {
+            return $testId !== '' ? $testId : (string) ($this->company_gateway->getConfigField('merchantId') ?? '');
+        }
+
+        return (string) ($this->company_gateway->getConfigField('merchantId') ?? '');
     }
 
     /**

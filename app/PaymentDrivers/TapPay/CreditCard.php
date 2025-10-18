@@ -81,8 +81,8 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
             $response = $this->tappay->gateway->post('tpc/payment/pay-by-prime', [
                 'json' => [
                     'prime' => $prime,
-                    'partner_key' => $this->tappay->company_gateway->getConfigField('partnerKey'),
-                    'merchant_id' => $this->tappay->company_gateway->getConfigField('merchantId'),
+                    'partner_key' => $this->tappay->getPartnerKey(),
+                    'merchant_id' => $this->tappay->getMerchantId(),
                     'amount' => 1, // $0.01 or $1 depending on currency
                     'currency' => $this->tappay->client->getCurrencyCode(),
                     'details' => 'Card authorization for future payments',
@@ -253,8 +253,8 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
         try {
             // Build request body
             $requestBody = [
-                'partner_key' => $this->tappay->company_gateway->getConfigField('partnerKey'),
-                'merchant_id' => $this->tappay->company_gateway->getConfigField('merchantId'),
+                'partner_key' => $this->tappay->getPartnerKey(),
+                'merchant_id' => $this->tappay->getMerchantId(),
                 'card_key' => $cgt->token,
                 'card_token' => $cgt->meta->card_token ?? '',
                 'amount' => (int) $amount,
@@ -355,8 +355,8 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
             // Build request body
             $requestBody = [
                 'prime' => $prime,
-                'partner_key' => $this->tappay->company_gateway->getConfigField('partnerKey'),
-                'merchant_id' => $this->tappay->company_gateway->getConfigField('merchantId'),
+                'partner_key' => $this->tappay->getPartnerKey(),
+                'merchant_id' => $this->tappay->getMerchantId(),
                 'amount' => (int) $amount,
                 'currency' => $this->tappay->client->getCurrencyCode(),
                 'details' => $this->tappay->getTapPayDescription(),
