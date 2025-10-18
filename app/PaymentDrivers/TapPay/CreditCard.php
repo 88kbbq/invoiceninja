@@ -173,6 +173,13 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
         $data['app_key'] = $this->tappay->getPublishableKey();
         $data['server_type'] = $this->tappay->getServerType();
 
+        \Log::debug('TapPay paymentData', [
+            'app_id' => $data['app_id'],
+            'app_key' => $data['app_key'],
+            'server_type' => $data['server_type'],
+            'test_mode' => $this->tappay->company_gateway->getConfigField('testMode'),
+        ]);
+
         return $data;
     }
 
@@ -244,24 +251,51 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
         $amount = $this->tappay->payment_hash->data->value ?? 0;
 
         try {
-            $response = $this->tappay->gateway->post('tpc/payment/pay-by-token', [
-                'json' => [
-                    'partner_key' => $this->tappay->company_gateway->getConfigField('partnerKey'),
-                    'merchant_id' => $this->tappay->company_gateway->getConfigField('merchantId'),
-                    'card_key' => $cgt->token,
-                    'card_token' => $cgt->meta->card_token ?? '',
-                    'amount' => (int) $amount,
-                    'currency' => $this->tappay->client->getCurrencyCode(),
-                    'details' => $this->tappay->getTapPayDescription(),
-                    'cardholder' => [
-                        'phone_number' => $this->tappay->client->phone ?? '',
-                        'name' => $this->tappay->client->present()->name(),
-                        'email' => $this->tappay->client->present()->email(),
-                    ],
+            // Build request body
+            $requestBody = [
+                'partner_key' => $this->tappay->company_gateway->getConfigField('partnerKey'),
+                'merchant_id' => $this->tappay->company_gateway->getConfigField('merchantId'),
+                'card_key' => $cgt->token,
+                'card_token' => $cgt->meta->card_token ?? '',
+                'amount' => (int) $amount,
+                'currency' => $this->tappay->client->getCurrencyCode(),
+                'details' => $this->tappay->getTapPayDescription(),
+                'cardholder' => [
+                    'phone_number' => $this->tappay->client->phone ?? '',
+                    'name' => $this->tappay->client->present()->name(),
+                    'email' => $this->tappay->client->present()->email(),
                 ],
+            ];
+
+            // LOG REQUEST - For TapPay Support
+            \Log::info('TapPay API Request - Pay by Token', [
+                'endpoint' => 'tpc/payment/pay-by-token',
+                'method' => 'POST',
+                'request_body' => $requestBody,
+                'timestamp' => now()->toIso8601String(),
+                'client_id' => $this->tappay->client->id,
+                'payment_hash' => $this->tappay->payment_hash->hash ?? null,
+                'gateway_token_id' => $cgt->id,
             ]);
 
-            $data = json_decode($response->getBody()->getContents());
+            $response = $this->tappay->gateway->post('tpc/payment/pay-by-token', [
+                'json' => $requestBody,
+            ]);
+
+            $responseBody = $response->getBody()->getContents();
+            $data = json_decode($responseBody);
+
+            // LOG RESPONSE - For TapPay Support
+            \Log::info('TapPay API Response - Pay by Token', [
+                'endpoint' => 'tpc/payment/pay-by-token',
+                'http_status_code' => $response->getStatusCode(),
+                'response_body' => $data,
+                'response_raw' => $responseBody,
+                'timestamp' => now()->toIso8601String(),
+                'client_id' => $this->tappay->client->id,
+                'payment_hash' => $this->tappay->payment_hash->hash ?? null,
+                'gateway_token_id' => $cgt->id,
+            ]);
 
             if ($data->status === 0) {
                 return $this->processSuccessfulPayment($data, $amount);
@@ -271,6 +305,19 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
 
         } catch (GuzzleException $e) {
             $this->tappay->unWindGatewayFees($this->tappay->payment_hash);
+
+            // LOG ERROR - For TapPay Support
+            \Log::error('TapPay API Error - Pay by Token', [
+                'endpoint' => 'tpc/payment/pay-by-token',
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'exception_class' => get_class($e),
+                'timestamp' => now()->toIso8601String(),
+                'client_id' => $this->tappay->client->id,
+                'payment_hash' => $this->tappay->payment_hash->hash ?? null,
+                'gateway_token_id' => $cgt->id ?? null,
+                'request_body' => $requestBody ?? null,
+            ]);
 
             SystemLogger::dispatch(
                 ['error' => $e->getMessage()],
@@ -305,25 +352,50 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
         $amount = $this->tappay->payment_hash->data->value ?? 0;
 
         try {
-            // Charge the card using Prime token
-            $response = $this->tappay->gateway->post('tpc/payment/pay-by-prime', [
-                'json' => [
-                    'prime' => $prime,
-                    'partner_key' => $this->tappay->company_gateway->getConfigField('partnerKey'),
-                    'merchant_id' => $this->tappay->company_gateway->getConfigField('merchantId'),
-                    'amount' => (int) $amount,
-                    'currency' => $this->tappay->client->getCurrencyCode(),
-                    'details' => $this->tappay->getTapPayDescription(),
-                    'cardholder' => [
-                        'phone_number' => $this->tappay->client->phone ?? '',
-                        'name' => $cardholder_name,
-                        'email' => $this->tappay->client->present()->email(),
-                    ],
-                    'remember' => $store_card, // Save card if requested
+            // Build request body
+            $requestBody = [
+                'prime' => $prime,
+                'partner_key' => $this->tappay->company_gateway->getConfigField('partnerKey'),
+                'merchant_id' => $this->tappay->company_gateway->getConfigField('merchantId'),
+                'amount' => (int) $amount,
+                'currency' => $this->tappay->client->getCurrencyCode(),
+                'details' => $this->tappay->getTapPayDescription(),
+                'cardholder' => [
+                    'phone_number' => $this->tappay->client->phone ?? '',
+                    'name' => $cardholder_name,
+                    'email' => $this->tappay->client->present()->email(),
                 ],
+                'remember' => $store_card,
+            ];
+
+            // LOG REQUEST - For TapPay Support
+            \Log::info('TapPay API Request - Pay by Prime', [
+                'endpoint' => 'tpc/payment/pay-by-prime',
+                'method' => 'POST',
+                'request_body' => $requestBody,
+                'timestamp' => now()->toIso8601String(),
+                'client_id' => $this->tappay->client->id,
+                'payment_hash' => $this->tappay->payment_hash->hash ?? null,
             ]);
 
-            $data = json_decode($response->getBody()->getContents());
+            // Charge the card using Prime token
+            $response = $this->tappay->gateway->post('tpc/payment/pay-by-prime', [
+                'json' => $requestBody,
+            ]);
+
+            $responseBody = $response->getBody()->getContents();
+            $data = json_decode($responseBody);
+
+            // LOG RESPONSE - For TapPay Support
+            \Log::info('TapPay API Response - Pay by Prime', [
+                'endpoint' => 'tpc/payment/pay-by-prime',
+                'http_status_code' => $response->getStatusCode(),
+                'response_body' => $data,
+                'response_raw' => $responseBody,
+                'timestamp' => now()->toIso8601String(),
+                'client_id' => $this->tappay->client->id,
+                'payment_hash' => $this->tappay->payment_hash->hash ?? null,
+            ]);
 
             if ($data->status === 0) {
                 // Save card if requested and token was returned
@@ -338,6 +410,18 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
 
         } catch (GuzzleException $e) {
             $this->tappay->unWindGatewayFees($this->tappay->payment_hash);
+
+            // LOG ERROR - For TapPay Support
+            \Log::error('TapPay API Error - Pay by Prime', [
+                'endpoint' => 'tpc/payment/pay-by-prime',
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'exception_class' => get_class($e),
+                'timestamp' => now()->toIso8601String(),
+                'client_id' => $this->tappay->client->id,
+                'payment_hash' => $this->tappay->payment_hash->hash ?? null,
+                'request_body' => $requestBody ?? null,
+            ]);
 
             SystemLogger::dispatch(
                 ['error' => $e->getMessage()],

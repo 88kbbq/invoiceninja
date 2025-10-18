@@ -19,7 +19,7 @@
     <meta name="currency" content="{{ $currency }}">
     <meta name="payment-hash" content="{{ $payment_hash }}">
 
-    <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.14.0"></script>
+    <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.19.2"></script>
 
     <style>
         .tpfield {
@@ -59,7 +59,7 @@
     </style>
 @endpush
 
-<div class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden py-5 bg-white" id="tappay-credit-card-payment">
+<div class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden py-5 bg-white" id="tappay-credit-card-payment" data-sdk-src="https://js.tappaysdk.com/sdk/tpdirect/v5.19.2" data-app-id="{{ $app_id }}" data-app-key="{{ $app_key }}" data-server-type="{{ $server_type }}">
     <form action="{{ route('client.payments.response') }}" method="post" id="server-response">
         @csrf
         <input type="hidden" name="prime" id="prime-input">

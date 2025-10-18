@@ -24,9 +24,28 @@ class TapPayCreditCardPayment {
         this.cacheElements();
 
         // Get configuration from meta tags
-        this.appId = this.getMetaContent('app-id');
-        this.appKey = this.getMetaContent('app-key');
-        this.serverType = this.getMetaContent('server-type');
+        this.appId = this.getConfigValue('app-id');
+        this.appKey = this.getConfigValue('app-key');
+        this.serverType = this.getConfigValue('server-type');
+        console.log('TapPay meta', { appId: this.appId, appKey: this.appKey, serverType: this.serverType });
+        console.log('TapPay meta values', this.appId, this.appKey, this.serverType);
+
+        const sdkScript = this.ensureSdkScript();
+
+        if (!sdkScript) {
+            console.error('Unable to attach TapPay SDK script');
+            this.showConfigurationError();
+            return;
+        }
+
+        sdkScript.addEventListener('load', () => {
+            console.log('TapPay SDK script load event', typeof window.TPDirect);
+        });
+
+        sdkScript.addEventListener('error', (event) => {
+            console.error('TapPay SDK script error event', event);
+            this.showConfigurationError();
+        });
 
         if (!this.appId || !this.appKey || !this.serverType) {
             console.error('TapPay configuration missing');
@@ -47,9 +66,18 @@ class TapPayCreditCardPayment {
     }
 
     /**
-     * Get content from meta tag
+     * Get configuration value from data attributes or meta tags
      */
-    getMetaContent(name) {
+    getConfigValue(name) {
+        const container = document.getElementById('tappay-credit-card-payment');
+        if (container) {
+            const datasetKey = name.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
+            const value = container.dataset[datasetKey];
+            if (value) {
+                return value;
+            }
+        }
+
         const meta = document.querySelector(`meta[name="${name}"]`);
         return meta ? meta.content : null;
     }
@@ -78,6 +106,24 @@ class TapPayCreditCardPayment {
                 cardCvc: document.getElementById('card-cvc-error')
             }
         };
+    }
+
+    ensureSdkScript() {
+        const container = document.getElementById('tappay-credit-card-payment');
+        const defaultSrc = 'https://js.tappaysdk.com/sdk/tpdirect/v5.19.2';
+        const sdkSrc = container?.dataset.sdkSrc || defaultSrc;
+
+        let script = document.querySelector(`script[src="${sdkSrc}"]`);
+
+        if (!script) {
+            console.warn('TapPay SDK script tag not found in DOM, creating dynamically');
+            script = document.createElement('script');
+            script.src = sdkSrc;
+            script.async = true;
+            document.head.appendChild(script);
+        }
+
+        return script;
     }
 
     /**
