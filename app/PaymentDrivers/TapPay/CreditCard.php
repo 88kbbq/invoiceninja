@@ -99,9 +99,14 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
 
             if ($data->status === 0 && isset($data->card_secret)) {
                 // Success - save card token
+                // Parse expiry_date string (format: YYYYMM, e.g., "203012" = Dec 2030)
+                $expiryDate = (string) $data->card_info->expiry_date;
+                $expYear = substr($expiryDate, 0, 4);  // First 4 digits = year
+                $expMonth = substr($expiryDate, 4, 2);  // Last 2 digits = month
+
                 $payment_meta = new \stdClass();
-                $payment_meta->exp_month = (string) $data->card_info->expiry_date->month;
-                $payment_meta->exp_year = (string) $data->card_info->expiry_date->year;
+                $payment_meta->exp_month = $expMonth;
+                $payment_meta->exp_year = $expYear;
                 $payment_meta->brand = (string) ($data->card_info->type ?? 'Card');
                 $payment_meta->last4 = (string) $data->card_info->last_four;
                 $payment_meta->type = (int) GatewayType::CREDIT_CARD;
@@ -453,9 +458,14 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
      */
     private function saveCardToken($data): void
     {
+        // Parse expiry_date string (format: YYYYMM, e.g., "203012" = Dec 2030)
+        $expiryDate = (string) $data->card_info->expiry_date;
+        $expYear = substr($expiryDate, 0, 4);  // First 4 digits = year
+        $expMonth = substr($expiryDate, 4, 2);  // Last 2 digits = month
+
         $payment_meta = new \stdClass();
-        $payment_meta->exp_month = (string) $data->card_info->expiry_date->month;
-        $payment_meta->exp_year = (string) $data->card_info->expiry_date->year;
+        $payment_meta->exp_month = $expMonth;
+        $payment_meta->exp_year = $expYear;
         $payment_meta->brand = (string) ($data->card_info->type ?? 'Card');
         $payment_meta->last4 = (string) $data->card_info->last_four;
         $payment_meta->type = (int) GatewayType::CREDIT_CARD;
