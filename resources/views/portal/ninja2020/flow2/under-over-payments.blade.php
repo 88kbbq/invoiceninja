@@ -8,13 +8,13 @@
     <dd class="text-sm leading-5 text-gray-900 sm:mt-0 sm:col-span-2 flex flex-col">
         <template x-for="(invoice, index) in payableInvoices" :key="index">
 
-            <div class="flex items-center mb-2">
-                <label>
-                    <span x-text="'{{ ctrans('texts.invoice') }} ' + invoice.number" class="mt-2"></span>
-                    <span class="pr-2">{{ $currency->code }} ({{ $currency->symbol }})</span>
-                    <input type="text" class="input mt-0 mr-4 relative" name="payable_invoices[]"
+            <div class="flex items-center gap-4 mb-2">
+                <span x-text="'{{ ctrans('texts.invoice') }} ' + invoice.number" class="text-sm text-gray-600 whitespace-nowrap"></span>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-600 whitespace-nowrap">{{ $currency->code }} ({{ $currency->symbol }})</span>
+                    <input type="text" class="input" name="payable_invoices[]"
                         x-model="payableInvoices[index].formatted_amount" />
-                </label>
+                </div>
             </div>
         </template>
 
