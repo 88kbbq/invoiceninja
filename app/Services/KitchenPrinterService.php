@@ -342,12 +342,14 @@ class KitchenPrinterService
     {
         $receipt = "";
 
-        // Initialize printer
+        // Initialize printer (ESC/POS standard - works on most thermal printers)
         $receipt .= chr(27) . chr(64); // ESC @ - Initialize printer
 
-        // Enable Traditional Chinese Big5 encoding
-        $receipt .= chr(27) . chr(36); // ESC $ - Enable Kanji/Chinese character mode
-
+        // Test content - plain ASCII first
+        $receipt .= "================================\n";
+        $receipt .= "  KITCHEN PRINTER TEST\n";
+        $receipt .= "================================\n";
+        $receipt .= "\n";
         $receipt .= "Invoice Ninja Kitchen Printer\n";
         $receipt .= "TCP/IP Direct Printing\n";
         $receipt .= "\n";
@@ -356,10 +358,18 @@ class KitchenPrinterService
         $receipt .= "Time: " . now()->format('Y-m-d H:i:s') . "\n";
         $receipt .= "\n";
         $receipt .= "If you see this, printing works!\n";
+        $receipt .= "\n";
+        $receipt .= "================================\n";
 
-        // Feed and cut (StarPRNT: ESC d)
-        $receipt .= "\n\n\n\n";
-        $receipt .= chr(27) . chr(100) . chr(1); // ESC d 1 - Partial cut
+        // Feed paper (6 lines)
+        $receipt .= "\n\n\n\n\n\n";
+
+        // Paper cut - try multiple methods
+        // Method 1: ESC/POS full cut (GS V 0)
+        $receipt .= chr(29) . chr(86) . chr(0);
+
+        // Method 2: ESC/POS partial cut (GS V 1) - backup
+        // $receipt .= chr(29) . chr(86) . chr(1);
 
         return $receipt;
     }
