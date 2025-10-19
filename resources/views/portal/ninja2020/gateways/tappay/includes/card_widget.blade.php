@@ -20,20 +20,22 @@
 
         {{-- Expiration & CVV --}}
         <div class="px-4 py-2 sm:px-6">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
                 <div class="text-sm font-medium text-gray-500">
-                    {{ ctrans('texts.expiration_month') }} / {{ ctrans('texts.expiration_year') }}
+                    {{ ctrans('texts.expires') }}
                 </div>
                 <div class="lg:col-span-2">
-                    <div class="flex gap-4 items-start">
+                    <div class="flex gap-4 items-center">
                         <div class="flex-1">
                             <div class="tpfield tpfield--expiry" id="tappay-card-expiry"></div>
                             <div id="card-expiry-error" class="field-error hidden"></div>
                         </div>
-                        <div class="flex-shrink-0">
-                            <label class="block text-sm font-medium text-gray-500 mb-2">{{ ctrans('texts.cvv') }}</label>
-                            <div class="tpfield tpfield--cvc" id="tappay-card-cvc"></div>
-                            <div id="card-cvc-error" class="field-error hidden"></div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <span class="text-sm text-gray-600 whitespace-nowrap">{{ ctrans('texts.cvv') }}</span>
+                            <div>
+                                <div class="tpfield tpfield--cvc" id="tappay-card-cvc"></div>
+                                <div id="card-cvc-error" class="field-error hidden"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
