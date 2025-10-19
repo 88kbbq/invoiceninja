@@ -364,11 +364,15 @@ class KitchenPrinterService
         // Feed paper (6 lines)
         $receipt .= "\n\n\n\n\n\n";
 
-        // Paper cut - try multiple methods
-        // Method 1: ESC/POS full cut (GS V 0)
+        // Try multiple print trigger methods:
+
+        // Method 1: Form feed (print buffer)
+        $receipt .= chr(12); // FF - Form feed (triggers print on many printers)
+
+        // Method 2: ESC/POS full cut (GS V 0)
         $receipt .= chr(29) . chr(86) . chr(0);
 
-        // Method 2: ESC/POS partial cut (GS V 1) - backup
+        // Method 3: Partial cut as backup (GS V 1)
         // $receipt .= chr(29) . chr(86) . chr(1);
 
         return $receipt;
@@ -379,6 +383,15 @@ class KitchenPrinterService
         try {
             [$ip, $port] = $this->resolveEndpoint($ipOverride, $portOverride);
 
+            // Log raw data being sent (first 200 bytes for debugging)
+            Log::debug('Printer data preview', [
+                'ip' => $ip,
+                'port' => $port,
+                'data_length' => strlen($data),
+                'data_preview' => substr($data, 0, 200),
+                'hex_preview' => bin2hex(substr($data, 0, 50)),
+            ]);
+
             $socket = @fsockopen($ip, $port, $errno, $errstr, 5);
 
             if (!$socket) {
@@ -386,8 +399,12 @@ class KitchenPrinterService
             }
 
             // Send data
-            fwrite($socket, $data);
+            $bytesWritten = fwrite($socket, $data);
             fflush($socket);
+
+            // IMPORTANT: Add delay before closing socket
+            // Star printers need time to process data
+            usleep(500000); // 500ms = 0.5 seconds
 
             // Close connection
             fclose($socket);
@@ -395,7 +412,8 @@ class KitchenPrinterService
             Log::info('Successfully sent data to printer', [
                 'ip' => $ip,
                 'port' => $port,
-                'data_length' => strlen($data)
+                'data_length' => strlen($data),
+                'bytes_written' => $bytesWritten,
             ]);
 
             return true;
