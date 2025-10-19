@@ -125,6 +125,165 @@ class KitchenPrinterService
         }
     }
 
+    /**
+     * Print invoice using WebPRNT directly to printer
+     * Sends XML formatted data to printer's WebPRNT endpoint
+     */
+    public function printInvoiceWebPRNTDirect(Invoice $invoice): array
+    {
+        if (!$this->enabled) {
+            throw new Exception('Kitchen printer is disabled');
+        }
+
+        try {
+            // Build WebPRNT XML content
+            $xml = $this->formatInvoiceWebPRNT($invoice);
+
+            // URL encode the XML for POST
+            $request = urlencode($xml);
+
+            // Send to printer's WebPRNT endpoint via SSH tunnel
+            // Tunnel forwards port 8443 on production server to port 443 on printer
+            $ch = curl_init('https://127.0.0.1:8443/StarWebPRNT/SendMessage');
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_SSL_VERIFYPEER => false, // Printer uses self-signed cert
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/x-www-form-urlencoded',
+                ],
+                CURLOPT_POSTFIELDS => 'request=' . $request,
+                CURLOPT_TIMEOUT => 10,
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError) {
+                throw new Exception("CURL error: {$curlError}");
+            }
+
+            if ($httpCode !== 200) {
+                throw new Exception("WebPRNT endpoint returned HTTP {$httpCode}: {$response}");
+            }
+
+            // Parse XML response
+            $xmlResponse = simplexml_load_string($response);
+            $success = isset($xmlResponse->Response) && strpos($xmlResponse->Response, 'true') !== false;
+
+            if (!$success) {
+                throw new Exception("WebPRNT print failed. Response: {$response}");
+            }
+
+            Log::info('WebPRNT direct print successful', [
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->number,
+            ]);
+
+            return [
+                'success' => true,
+                'message' => 'Kitchen receipt sent successfully',
+                'invoice_number' => $invoice->number,
+            ];
+
+        } catch (Exception $e) {
+            Log::error('WebPRNT direct print failed', [
+                'invoice_id' => $invoice->id ?? null,
+                'invoice_number' => $invoice->number ?? null,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Format invoice data as WebPRNT XML
+     * Uses Star WebPRNT XML syntax for formatting
+     */
+    private function formatInvoiceWebPRNT(Invoice $invoice): string
+    {
+        $client = $invoice->client;
+        $lineItems = $invoice->line_items;
+
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml .= '<root>';
+
+        // Center-aligned, large/bold invoice number
+        $xml .= '<alignment position="center"/>';
+        $xml .= '<text emphasis="true" width="2" height="2">' . htmlspecialchars($invoice->number) . "\x0a" . '</text>';
+
+        // Date (large text, centered)
+        $xml .= '<text width="2" height="2">' . htmlspecialchars(Carbon::parse($invoice->date)->format('Y-m-d')) . "\x0a" . '</text>';
+
+        // Event/Arrival time (if exists)
+        if ($invoice->custom_value1) {
+            $xml .= '<text width="2" height="2">' . htmlspecialchars($invoice->custom_value1 . ' 到達') . "\x0a" . '</text>';
+        }
+
+        // Black separator line (using bitmap graphics)
+        $xml .= '<alignment position="left"/>';
+        $xml .= '<text>' . str_repeat('=', 48) . "\x0a" . '</text>';
+
+        // Customer name (bold, large)
+        $xml .= '<text emphasis="true" width="2" height="2">' . htmlspecialchars($client->present()->name()) . "\x0a" . '</text>';
+
+        // Customer phone
+        if ($client->phone) {
+            $xml .= '<text width="2" height="2">' . htmlspecialchars($client->phone) . "\x0a" . '</text>';
+        }
+
+        // Separator line
+        $xml .= '<text>' . str_repeat('=', 48) . "\x0a" . '</text>';
+
+        // Line items
+        foreach ($lineItems as $item) {
+            if (empty($item->product_key) && empty($item->notes)) {
+                continue;
+            }
+
+            $itemName = $item->product_key ?: $item->notes;
+
+            // Format quantity
+            $qty = $item->quantity;
+            if (floor($qty) == $qty) {
+                $qtyStr = number_format($qty, 0);
+            } else {
+                $qtyStr = rtrim(rtrim(number_format($qty, 2, '.', ''), '0'), '.');
+            }
+
+            // Item name (regular size, left-aligned)
+            $xml .= '<text width="2" height="2">' . htmlspecialchars($itemName) . '  </text>';
+
+            // Quantity in inverse box (white text on black background)
+            $xml .= '<text emphasis="true" invert="true" width="2" height="2"> ' . htmlspecialchars($qtyStr) . ' </text>';
+            $xml .= '<text>' . "\x0a" . '</text>';
+        }
+
+        // Separator line
+        $xml .= '<text>' . str_repeat('=', 48) . "\x0a" . '</text>';
+
+        // Public notes
+        if (!empty($invoice->public_notes)) {
+            $xml .= '<text>' . htmlspecialchars($invoice->public_notes) . "\x0a" . '</text>';
+        }
+
+        // Private notes
+        if (!empty($invoice->private_notes)) {
+            $xml .= '<text emphasis="true">' . htmlspecialchars($invoice->private_notes) . "\x0a" . '</text>';
+        }
+
+        // Feed and cut
+        $xml .= '<text>' . "\x0a\x0a\x0a" . '</text>';
+        $xml .= '<cut type="partial"/>';
+
+        $xml .= '</root>';
+
+        return $xml;
+    }
+
     public function printQuote(Quote $quote, ?string $ipOverride = null, ?int $portOverride = null): bool
     {
         if (!$this->enabled) {
