@@ -248,7 +248,8 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
             throw new PaymentFailed(ctrans('texts.payment_token_not_found'), 401);
         }
 
-        $amount = $this->tappay->payment_hash->data->value ?? 0;
+        // Get amount from request (already converted to TapPay format)
+        $amount = $request->input('value') ?? $this->tappay->payment_hash->data->value ?? 0;
 
         try {
             // Build request body
@@ -349,7 +350,15 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
             throw new PaymentFailed('No prime token received', 400);
         }
 
-        $amount = $this->tappay->payment_hash->data->value ?? 0;
+        // Get amount from request (already converted to TapPay format)
+        $amount = $request->input('value') ?? $this->tappay->payment_hash->data->value ?? 0;
+
+        \Log::debug('TapPay Payment Amount Debug - Prime', [
+            'request_value' => $request->input('value'),
+            'payment_hash_value' => $this->tappay->payment_hash->data->value ?? null,
+            'final_amount' => $amount,
+            'raw_value' => $request->input('raw_value'),
+        ]);
 
         try {
             // Build request body
