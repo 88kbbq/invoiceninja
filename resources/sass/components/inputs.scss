@@ -25,6 +25,8 @@
 .tpfield {
     @apply border border-gray-300 rounded bg-white px-4 py-2 text-sm transition;
     min-height: 40px;
+    max-height: 40px;
+    height: 40px;
     line-height: 1.25rem;
 }
 

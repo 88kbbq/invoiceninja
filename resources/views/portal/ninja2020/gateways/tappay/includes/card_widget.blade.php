@@ -18,24 +18,26 @@
             <div id="card-number-error" class="field-error hidden"></div>
         @endcomponent
 
-        {{-- Expiration & CVV on same row --}}
-        <div class="px-4 py-2 sm:px-6 lg:grid lg:grid-cols-3 lg:gap-4 lg:flex lg:items-center">
-            <dt class="text-sm leading-5 font-medium text-gray-500 mr-4">
-                {{ ctrans('texts.expiration_date') }}
-            </dt>
-            <dd class="mt-1 text-sm leading-5 text-gray-900 sm:mt-0 sm:col-span-2 flex gap-4">
-                <div class="flex-1">
-                    <div class="tpfield tpfield--expiry" id="tappay-card-expiry"></div>
-                    <div id="card-expiry-error" class="field-error hidden"></div>
+        {{-- Expiration & CVV --}}
+        <div class="px-4 py-2 sm:px-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+                <div class="text-sm font-medium text-gray-500">
+                    {{ ctrans('texts.expiration_month') }} / {{ ctrans('texts.expiration_year') }}
                 </div>
-                <div class="flex items-center gap-2">
-                    <span class="text-sm text-gray-600 whitespace-nowrap">{{ ctrans('texts.cvv') }}</span>
-                    <div>
-                        <div class="tpfield tpfield--cvc" id="tappay-card-cvc"></div>
-                        <div id="card-cvc-error" class="field-error hidden"></div>
+                <div class="lg:col-span-2">
+                    <div class="flex gap-4 items-start">
+                        <div class="flex-1">
+                            <div class="tpfield tpfield--expiry" id="tappay-card-expiry"></div>
+                            <div id="card-expiry-error" class="field-error hidden"></div>
+                        </div>
+                        <div class="flex-shrink-0">
+                            <label class="block text-sm font-medium text-gray-500 mb-2">{{ ctrans('texts.cvv') }}</label>
+                            <div class="tpfield tpfield--cvc" id="tappay-card-cvc"></div>
+                            <div id="card-cvc-error" class="field-error hidden"></div>
+                        </div>
                     </div>
                 </div>
-            </dd>
+            </div>
         </div>
     @endunless
 </div>
