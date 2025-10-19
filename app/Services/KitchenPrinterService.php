@@ -21,14 +21,14 @@ class KitchenPrinterService
         $this->enabled = config('kitchenprinter.enabled', false);
     }
 
-    public function printInvoice(Invoice $invoice): bool
+    public function printInvoice(Invoice $invoice, ?string $ipOverride = null, ?int $portOverride = null): bool
     {
         if (!$this->enabled) {
             throw new Exception('Kitchen printer is disabled');
         }
 
         $receiptData = $this->formatInvoiceReceipt($invoice);
-        return $this->sendToPrinter($receiptData);
+        return $this->sendToPrinter($receiptData, $ipOverride, $portOverride);
     }
 
     /**
@@ -125,35 +125,43 @@ class KitchenPrinterService
         }
     }
 
-    public function printQuote(Quote $quote): bool
+    public function printQuote(Quote $quote, ?string $ipOverride = null, ?int $portOverride = null): bool
     {
         if (!$this->enabled) {
             throw new Exception('Kitchen printer is disabled');
         }
 
         $receiptData = $this->formatQuoteReceipt($quote);
-        return $this->sendToPrinter($receiptData);
+        return $this->sendToPrinter($receiptData, $ipOverride, $portOverride);
     }
 
-    public function testConnection(): bool
+    public function testConnection(?string $ipOverride = null, ?int $portOverride = null): bool
     {
         try {
-            $socket = @fsockopen($this->printerIp, $this->printerPort, $errno, $errstr, 2);
+            [$ip, $port] = $this->resolveEndpoint($ipOverride, $portOverride);
+
+            $socket = @fsockopen($ip, $port, $errno, $errstr, 2);
             if ($socket) {
                 fclose($socket);
                 return true;
             }
             return false;
         } catch (Exception $e) {
-            Log::error('Printer connection test failed', ['error' => $e->getMessage()]);
+            Log::error('Printer connection test failed', [
+                'error' => $e->getMessage(),
+                'target_ip' => $ipOverride ?? $this->printerIp,
+                'target_port' => $portOverride ?? $this->printerPort,
+            ]);
             return false;
         }
     }
 
-    public function testPrint(): bool
+    public function testPrint(?string $ipOverride = null, ?int $portOverride = null): bool
     {
-        $testReceipt = $this->getTestReceipt();
-        return $this->sendToPrinter($testReceipt);
+        [$ip, $port] = $this->resolveEndpoint($ipOverride, $portOverride);
+        $testReceipt = $this->getTestReceipt($ip, $port);
+
+        return $this->sendToPrinter($testReceipt, $ip, $port);
     }
 
     private function formatInvoiceReceipt(Invoice $invoice): string
@@ -330,7 +338,7 @@ class KitchenPrinterService
         return $receipt;
     }
 
-    private function getTestReceipt(): string
+    private function getTestReceipt(string $ip, int $port): string
     {
         $receipt = "";
 
@@ -343,8 +351,8 @@ class KitchenPrinterService
         $receipt .= "Invoice Ninja Kitchen Printer\n";
         $receipt .= "TCP/IP Direct Printing\n";
         $receipt .= "\n";
-        $receipt .= "Printer IP: " . $this->printerIp . "\n";
-        $receipt .= "Port: " . $this->printerPort . "\n";
+        $receipt .= "Printer IP: " . $ip . "\n";
+        $receipt .= "Port: " . $port . "\n";
         $receipt .= "Time: " . now()->format('Y-m-d H:i:s') . "\n";
         $receipt .= "\n";
         $receipt .= "If you see this, printing works!\n";
@@ -356,10 +364,12 @@ class KitchenPrinterService
         return $receipt;
     }
 
-    private function sendToPrinter(string $data): bool
+    private function sendToPrinter(string $data, ?string $ipOverride = null, ?int $portOverride = null): bool
     {
         try {
-            $socket = @fsockopen($this->printerIp, $this->printerPort, $errno, $errstr, 5);
+            [$ip, $port] = $this->resolveEndpoint($ipOverride, $portOverride);
+
+            $socket = @fsockopen($ip, $port, $errno, $errstr, 5);
 
             if (!$socket) {
                 throw new Exception("Cannot connect to printer: {$errstr} ({$errno})");
@@ -373,8 +383,8 @@ class KitchenPrinterService
             fclose($socket);
 
             Log::info('Successfully sent data to printer', [
-                'ip' => $this->printerIp,
-                'port' => $this->printerPort,
+                'ip' => $ip,
+                'port' => $port,
                 'data_length' => strlen($data)
             ]);
 
@@ -383,10 +393,32 @@ class KitchenPrinterService
         } catch (Exception $e) {
             Log::error('Failed to send to printer', [
                 'error' => $e->getMessage(),
-                'ip' => $this->printerIp,
-                'port' => $this->printerPort
+                'target_ip' => $ipOverride ?? $this->printerIp,
+                'target_port' => $portOverride ?? $this->printerPort,
             ]);
             throw $e;
         }
+    }
+
+    private function resolveEndpoint(?string $ipOverride, ?int $portOverride): array
+    {
+        $ip = $this->printerIp;
+        $port = $this->printerPort;
+
+        if (!is_null($ipOverride)) {
+            if (!filter_var($ipOverride, FILTER_VALIDATE_IP)) {
+                throw new Exception("Invalid printer IP override: {$ipOverride}");
+            }
+            $ip = $ipOverride;
+        }
+
+        if (!is_null($portOverride)) {
+            if ($portOverride <= 0 || $portOverride > 65535) {
+                throw new Exception("Invalid printer port override: {$portOverride}");
+            }
+            $port = $portOverride;
+        }
+
+        return [$ip, $port];
     }
 }

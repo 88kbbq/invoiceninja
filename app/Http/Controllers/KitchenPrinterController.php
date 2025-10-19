@@ -23,25 +23,35 @@ class KitchenPrinterController extends BaseController
     public function printInvoice(ShowInvoiceRequest $request, Invoice $invoice)
     {
         try {
+            $overrideIp = $request->input('printer_ip');
+            $overridePort = $request->input('printer_port');
+            $port = $overridePort !== null ? (int) $overridePort : null;
+
             // Send to kitchen printer
-            $result = $this->printerService->printInvoice($invoice);
+            $result = $this->printerService->printInvoice($invoice, $overrideIp, $port);
 
             // Log the action
             Log::info('Kitchen receipt printed', [
                 'invoice_id' => $invoice->id,
                 'invoice_number' => $invoice->number,
                 'user_id' => auth()->id(),
+                'override_ip' => $overrideIp,
+                'override_port' => $port,
             ]);
 
             return response()->json([
                 'message' => 'Sent to kitchen printer',
                 'invoice_number' => $invoice->number,
+                'printer_ip' => $overrideIp ?? config('kitchenprinter.tcp.ip'),
+                'printer_port' => $port ?? config('kitchenprinter.tcp.port'),
             ], 200);
 
         } catch (\Exception $e) {
             Log::error('Kitchen print failed', [
                 'invoice_id' => $invoice->id,
                 'error' => $e->getMessage(),
+                'override_ip' => $request->input('printer_ip'),
+                'override_port' => $request->input('printer_port'),
             ]);
 
             return response()->json([
@@ -95,24 +105,34 @@ class KitchenPrinterController extends BaseController
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
 
+            $overrideIp = $request->input('printer_ip');
+            $overridePort = $request->input('printer_port');
+            $port = $overridePort !== null ? (int) $overridePort : null;
+
             // Send to kitchen printer
-            $result = $this->printerService->printQuote($quote);
+            $result = $this->printerService->printQuote($quote, $overrideIp, $port);
 
             Log::info('Kitchen receipt printed (quote)', [
                 'quote_id' => $quote->id,
                 'quote_number' => $quote->number,
                 'user_id' => auth()->id(),
+                'override_ip' => $overrideIp,
+                'override_port' => $port,
             ]);
 
             return response()->json([
                 'message' => 'Sent to kitchen printer',
                 'quote_number' => $quote->number,
+                'printer_ip' => $overrideIp ?? config('kitchenprinter.tcp.ip'),
+                'printer_port' => $port ?? config('kitchenprinter.tcp.port'),
             ], 200);
 
         } catch (\Exception $e) {
             Log::error('Kitchen print failed (quote)', [
                 'quote_id' => $quote->id,
                 'error' => $e->getMessage(),
+                'override_ip' => $request->input('printer_ip'),
+                'override_port' => $request->input('printer_port'),
             ]);
 
             return response()->json([
@@ -177,16 +197,23 @@ class KitchenPrinterController extends BaseController
         ], 200);
     }
 
-    public function testConnection()
+    public function testConnection(Request $request)
     {
         try {
-            $connected = $this->printerService->testConnection();
+            $overrideIp = $request->query('ip');
+            $overridePort = $request->query('port');
+
+            $port = $overridePort !== null ? (int) $overridePort : null;
+            $connected = $this->printerService->testConnection($overrideIp, $port);
+
+            $effectiveIp = $overrideIp ?? config('kitchenprinter.tcp.ip', '10.0.0.150');
+            $effectivePort = $port ?? config('kitchenprinter.tcp.port', 9100);
 
             if ($connected) {
                 return response()->json([
                     'message' => 'Printer connection successful',
-                    'printer_ip' => config('kitchenprinter.tcp.ip', '10.0.0.150'),
-                    'printer_port' => config('kitchenprinter.tcp.port', 9100),
+                    'printer_ip' => $effectiveIp,
+                    'printer_port' => $effectivePort,
                 ], 200);
             } else {
                 return response()->json([
@@ -200,13 +227,19 @@ class KitchenPrinterController extends BaseController
         }
     }
 
-    public function testPrint()
+    public function testPrint(Request $request)
     {
         try {
-            $this->printerService->testPrint();
+            $overrideIp = $request->query('ip');
+            $overridePort = $request->query('port');
+
+            $port = $overridePort !== null ? (int) $overridePort : null;
+            $this->printerService->testPrint($overrideIp, $port);
 
             return response()->json([
                 'message' => 'Test print sent successfully',
+                'printer_ip' => $overrideIp ?? config('kitchenprinter.tcp.ip', '10.0.0.150'),
+                'printer_port' => $port ?? config('kitchenprinter.tcp.port', 9100),
             ], 200);
 
         } catch (\Exception $e) {
