@@ -22,35 +22,30 @@
     @apply border border-gray-300;
 }
 
-.tpfield-row {
-    @apply flex items-center gap-3;
-}
-
-.tpfield-label {
-    @apply text-sm text-gray-600 whitespace-nowrap;
-}
-
 .tpfield {
     @apply border border-gray-300 rounded bg-white px-4 py-2 text-sm transition;
     min-height: 40px;
-    line-height: 1.5rem;
-    flex-shrink: 0;
+    line-height: 1.25rem;
 }
 
 .tpfield--number {
-    width: 19ch;
+    @apply w-full;
 }
 
 .tpfield--expiry {
-    width: 8ch;
+    width: 7rem;
 }
 
 .tpfield--cvc {
-    width: 4ch;
+    width: 4rem;
 }
 
 .tpfield.has-error {
     @apply border-red-500;
+}
+
+.tpfield:focus-within {
+    @apply bg-gray-50;
 }
 
 .field-error {
