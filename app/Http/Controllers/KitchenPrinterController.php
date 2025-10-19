@@ -61,34 +61,79 @@ class KitchenPrinterController extends BaseController
     }
 
     /**
-     * TEST: Print invoice using WebPRNT service (port 3002)
-     * For side-by-side comparison with ESC/POS (port 3001)
+     * TEST: Print invoice using Star WebPRNT (direct HTTPS request)
+     * Matches production formatting but targets configurable printer endpoint
      */
     public function printInvoiceWebPRNT(ShowInvoiceRequest $request, Invoice $invoice)
     {
         try {
+            $overrides = [];
+
+            if ($request->filled('printer_ip')) {
+                $overrides['ip'] = $request->input('printer_ip');
+            }
+
+            if ($request->filled('printer_port')) {
+                $overrides['port'] = (int) $request->input('printer_port');
+            }
+
+            if ($request->filled('printer_scheme')) {
+                $overrides['scheme'] = $request->input('printer_scheme');
+            }
+
+            if ($request->filled('printer_path')) {
+                $overrides['path'] = $request->input('printer_path');
+            }
+
+            if ($request->filled('printer_timeout')) {
+                $overrides['timeout'] = (int) $request->input('printer_timeout');
+            }
+
+            if ($request->has('printer_verify_ssl')) {
+                $verify = filter_var(
+                    $request->input('printer_verify_ssl'),
+                    FILTER_VALIDATE_BOOLEAN,
+                    FILTER_NULL_ON_FAILURE
+                );
+
+                if (!is_null($verify)) {
+                    $overrides['verify_ssl'] = $verify;
+                }
+            }
+
             // Send to WebPRNT service
-            $result = $this->printerService->printInvoiceWebPRNT($invoice);
+            $result = $this->printerService->printInvoiceWebPRNT($invoice, $overrides);
 
             // Log the action
             Log::info('Kitchen receipt printed via WebPRNT', [
                 'invoice_id' => $invoice->id,
                 'invoice_number' => $invoice->number,
                 'user_id' => auth()->id(),
-                'job_id' => $result['jobId'] ?? null,
+                'webprnt_url' => $result['webprnt_url'] ?? null,
+                'webprnt_config' => $result['webprnt_config'] ?? null,
+                'overrides' => $overrides,
             ]);
 
             return response()->json([
                 'message' => 'Sent to kitchen printer via WebPRNT',
                 'invoice_number' => $invoice->number,
                 'protocol' => 'StarWebPRNT',
-                'job_id' => $result['jobId'] ?? null,
+                'webprnt_url' => $result['webprnt_url'] ?? null,
+                'webprnt_config' => $result['webprnt_config'] ?? null,
             ], 200);
 
         } catch (\Exception $e) {
             Log::error('Kitchen print failed (WebPRNT)', [
                 'invoice_id' => $invoice->id,
                 'error' => $e->getMessage(),
+                'overrides' => $request->only([
+                    'printer_ip',
+                    'printer_port',
+                    'printer_scheme',
+                    'printer_path',
+                    'printer_verify_ssl',
+                    'printer_timeout',
+                ]),
             ]);
 
             return response()->json([

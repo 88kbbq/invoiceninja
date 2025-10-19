@@ -17,6 +17,15 @@ return [
         'port' => env('KITCHEN_PRINTER_PORT', 9100),
     ],
 
+    'webprnt' => [
+        'scheme' => env('KITCHEN_PRINTER_WEBPRNT_SCHEME', 'https'),
+        'ip' => env('KITCHEN_PRINTER_WEBPRNT_IP', env('KITCHEN_PRINTER_IP', '192.168.50.39')),
+        'port' => env('KITCHEN_PRINTER_WEBPRNT_PORT', 443),
+        'path' => env('KITCHEN_PRINTER_WEBPRNT_PATH', '/StarWebPRNT/SendMessage'),
+        'verify_ssl' => env('KITCHEN_PRINTER_WEBPRNT_VERIFY_SSL', false),
+        'timeout' => env('KITCHEN_PRINTER_WEBPRNT_TIMEOUT', 10),
+    ],
+
     'custom_fields' => [
         'event_time' => 'custom_value1',
         'event_date' => 'custom_value2',

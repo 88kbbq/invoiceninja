@@ -35,101 +35,16 @@ class KitchenPrinterService
      * Print invoice using WebPRNT service (TEST)
      * Sends to Node.js service on port 3002
      */
-    public function printInvoiceWebPRNT(Invoice $invoice): array
+    public function printInvoiceWebPRNT(Invoice $invoice, array $overrides = []): array
     {
-        if (!$this->enabled) {
-            throw new Exception('Kitchen printer is disabled');
-        }
-
-        try {
-            $client = $invoice->client;
-            $lineItems = $invoice->line_items;
-
-            // Build JSON payload for WebPRNT service
-            $data = [
-                'orderId' => $invoice->number,
-                'date' => Carbon::parse($invoice->date)->format('Y-m-d'),
-                'arriveAt' => $invoice->custom_value1 ? $invoice->custom_value1 . ' 到達' : null,
-                'customer' => [
-                    'name' => $client->present()->name(),
-                    'phone' => $client->phone ?? '',
-                ],
-                'items' => [],
-                'publicNotes' => $invoice->public_notes ?? '',
-                'privateNotes' => $invoice->private_notes ?? '',
-            ];
-
-            // Format line items
-            foreach ($lineItems as $item) {
-                if (empty($item->product_key) && empty($item->notes)) {
-                    continue;
-                }
-
-                $itemName = $item->product_key ?: $item->notes;
-
-                // Split Chinese and English parts
-                $parts = explode(' ', $itemName, 2);
-                $nameZh = $parts[0] ?? '';
-                $nameEn = $parts[1] ?? '';
-
-                $data['items'][] = [
-                    'nameZh' => $nameZh,
-                    'nameEn' => $nameEn,
-                    'qty' => (int) $item->quantity,
-                ];
-            }
-
-            // Send to WebPRNT service
-            $ch = curl_init('http://localhost:3002/api/print/kitchen');
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json',
-                    'x-api-key: 8875c71f87a5ebc5c5e38ab6c500cdeaa1e1cea50932c298db65739a933b4649',
-                ],
-                CURLOPT_POSTFIELDS => json_encode($data),
-                CURLOPT_TIMEOUT => 10,
-            ]);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            curl_close($ch);
-
-            if ($httpCode !== 200) {
-                throw new Exception("WebPRNT service returned HTTP {$httpCode}: {$response}");
-            }
-
-            if ($curlError) {
-                throw new Exception("CURL error: {$curlError}");
-            }
-
-            $result = json_decode($response, true);
-
-            Log::info('WebPRNT print successful', [
-                'invoice_id' => $invoice->id,
-                'invoice_number' => $invoice->number,
-                'job_id' => $result['jobId'] ?? null,
-            ]);
-
-            return $result;
-
-        } catch (Exception $e) {
-            Log::error('WebPRNT print failed', [
-                'invoice_id' => $invoice->id ?? null,
-                'invoice_number' => $invoice->number ?? null,
-                'error' => $e->getMessage(),
-            ]);
-            throw $e;
-        }
+        return $this->printInvoiceWebPRNTDirect($invoice, $overrides);
     }
 
     /**
      * Print invoice using WebPRNT directly to printer
      * Sends XML formatted data to printer's WebPRNT endpoint
      */
-    public function printInvoiceWebPRNTDirect(Invoice $invoice): array
+    public function printInvoiceWebPRNTDirect(Invoice $invoice, array $overrides = []): array
     {
         if (!$this->enabled) {
             throw new Exception('Kitchen printer is disabled');
@@ -139,23 +54,44 @@ class KitchenPrinterService
             // Build WebPRNT XML content
             $xml = $this->formatInvoiceWebPRNT($invoice);
 
-            // URL encode the XML for POST
-            $request = urlencode($xml);
+            $webprnt = config('kitchenprinter.webprnt', []);
+            $scheme = $overrides['scheme'] ?? $webprnt['scheme'] ?? 'https';
+            $host = $overrides['ip'] ?? $webprnt['ip'] ?? $this->printerIp;
+            $port = array_key_exists('port', $overrides)
+                ? (int) $overrides['port']
+                : ($webprnt['port'] ?? 443);
+            $path = $overrides['path'] ?? $webprnt['path'] ?? '/StarWebPRNT/SendMessage';
+            if ($path && $path[0] !== '/') {
+                $path = '/' . ltrim($path, '/');
+            }
+            $verifySsl = array_key_exists('verify_ssl', $overrides)
+                ? (bool) $overrides['verify_ssl']
+                : (bool) ($webprnt['verify_ssl'] ?? false);
+            $timeout = array_key_exists('timeout', $overrides)
+                ? (int) $overrides['timeout']
+                : (int) ($webprnt['timeout'] ?? 10);
 
-            // Send to printer's WebPRNT endpoint via SSH tunnel
-            // Tunnel forwards port 8443 on production server to port 443 on printer
-            $ch = curl_init('https://127.0.0.1:8443/StarWebPRNT/SendMessage');
-            curl_setopt_array($ch, [
+            $defaultPort = $scheme === 'https' ? 443 : 80;
+            $portPart = ($port && (int) $port !== $defaultPort) ? ':' . $port : '';
+            $url = sprintf('%s://%s%s%s', $scheme, $host, $portPart, $path);
+
+            $options = [
                 CURLOPT_POST => true,
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_SSL_VERIFYPEER => false, // Printer uses self-signed cert
-                CURLOPT_SSL_VERIFYHOST => false,
                 CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/x-www-form-urlencoded',
+                    'Content-Type: text/xml; charset=UTF-8',
                 ],
-                CURLOPT_POSTFIELDS => 'request=' . $request,
-                CURLOPT_TIMEOUT => 10,
-            ]);
+                CURLOPT_POSTFIELDS => $xml,
+                CURLOPT_TIMEOUT => $timeout,
+            ];
+
+            if ($scheme === 'https') {
+                $options[CURLOPT_SSL_VERIFYPEER] = $verifySsl;
+                $options[CURLOPT_SSL_VERIFYHOST] = $verifySsl ? 2 : 0;
+            }
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, $options);
 
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -181,12 +117,27 @@ class KitchenPrinterService
             Log::info('WebPRNT direct print successful', [
                 'invoice_id' => $invoice->id,
                 'invoice_number' => $invoice->number,
+                'webprnt_url' => $url,
+                'webprnt_scheme' => $scheme,
+                'webprnt_ip' => $host,
+                'webprnt_port' => $port,
+                'webprnt_path' => $path,
+                'webprnt_verify_ssl' => $verifySsl,
             ]);
 
             return [
                 'success' => true,
                 'message' => 'Kitchen receipt sent successfully',
                 'invoice_number' => $invoice->number,
+                'webprnt_url' => $url,
+                'webprnt_config' => [
+                    'scheme' => $scheme,
+                    'ip' => $host,
+                    'port' => $port,
+                    'path' => $path,
+                    'verify_ssl' => $verifySsl,
+                    'timeout' => $timeout,
+                ],
             ];
 
         } catch (Exception $e) {
@@ -194,6 +145,12 @@ class KitchenPrinterService
                 'invoice_id' => $invoice->id ?? null,
                 'invoice_number' => $invoice->number ?? null,
                 'error' => $e->getMessage(),
+                'webprnt_ip' => $host ?? null,
+                'webprnt_port' => $port ?? null,
+                'webprnt_scheme' => $scheme ?? null,
+                'webprnt_url' => $url ?? null,
+                'webprnt_path' => $path ?? null,
+                'webprnt_verify_ssl' => $verifySsl ?? null,
             ]);
             throw $e;
         }
@@ -208,35 +165,44 @@ class KitchenPrinterService
         $client = $invoice->client;
         $lineItems = $invoice->line_items;
 
-        $xml = '<?xml version="1.0" encoding="UTF-8"?>';
-        $xml .= '<root>';
+        $commands = [];
+
+        // Initialize printer
+        $commands[] = '<initialization/>';
 
         // Center-aligned, large/bold invoice number
-        $xml .= '<alignment position="center"/>';
-        $xml .= '<text emphasis="true" width="2" height="2">' . htmlspecialchars($invoice->number) . "\x0a" . '</text>';
+        $commands[] = '<alignment value="center"/>';
+        $commands[] = '<text emphasis="true" width="2" height="2">' . htmlspecialchars($invoice->number) . '</text>';
+        $commands[] = '<lineFeed/>';
 
         // Date (large text, centered)
-        $xml .= '<text width="2" height="2">' . htmlspecialchars(Carbon::parse($invoice->date)->format('Y-m-d')) . "\x0a" . '</text>';
+        $commands[] = '<text width="2" height="2">' . htmlspecialchars(Carbon::parse($invoice->date)->format('Y-m-d')) . '</text>';
+        $commands[] = '<lineFeed/>';
 
         // Event/Arrival time (if exists)
         if ($invoice->custom_value1) {
-            $xml .= '<text width="2" height="2">' . htmlspecialchars($invoice->custom_value1 . ' 到達') . "\x0a" . '</text>';
+            $commands[] = '<text width="2" height="2">' . htmlspecialchars($invoice->custom_value1 . ' 到達') . '</text>';
+            $commands[] = '<lineFeed/>';
         }
 
-        // Black separator line (using bitmap graphics)
-        $xml .= '<alignment position="left"/>';
-        $xml .= '<text>' . str_repeat('=', 48) . "\x0a" . '</text>';
+        // Black separator line
+        $commands[] = '<alignment value="left"/>';
+        $commands[] = '<ruledLine thickness="thick"/>';
+        $commands[] = '<lineFeed/>';
 
         // Customer name (bold, large)
-        $xml .= '<text emphasis="true" width="2" height="2">' . htmlspecialchars($client->present()->name()) . "\x0a" . '</text>';
+        $commands[] = '<text emphasis="true" width="2" height="2">' . htmlspecialchars($client->present()->name()) . '</text>';
+        $commands[] = '<lineFeed/>';
 
         // Customer phone
         if ($client->phone) {
-            $xml .= '<text width="2" height="2">' . htmlspecialchars($client->phone) . "\x0a" . '</text>';
+            $commands[] = '<text width="2" height="2">' . htmlspecialchars($client->phone) . '</text>';
+            $commands[] = '<lineFeed/>';
         }
 
         // Separator line
-        $xml .= '<text>' . str_repeat('=', 48) . "\x0a" . '</text>';
+        $commands[] = '<ruledLine thickness="thick"/>';
+        $commands[] = '<lineFeed/>';
 
         // Line items
         foreach ($lineItems as $item) {
@@ -254,32 +220,44 @@ class KitchenPrinterService
                 $qtyStr = rtrim(rtrim(number_format($qty, 2, '.', ''), '0'), '.');
             }
 
-            // Item name (regular size, left-aligned)
-            $xml .= '<text width="2" height="2">' . htmlspecialchars($itemName) . '  </text>';
-
-            // Quantity in inverse box (white text on black background)
-            $xml .= '<text emphasis="true" invert="true" width="2" height="2"> ' . htmlspecialchars($qtyStr) . ' </text>';
-            $xml .= '<text>' . "\x0a" . '</text>';
+            // Item line with quantity in inverse box
+            $commands[] = '<text width="2" height="2">' . htmlspecialchars($itemName) . '  </text>';
+            $commands[] = '<text emphasis="true" invert="true" width="2" height="2"> ' . htmlspecialchars($qtyStr) . ' </text>';
+            $commands[] = '<lineFeed/>';
         }
 
         // Separator line
-        $xml .= '<text>' . str_repeat('=', 48) . "\x0a" . '</text>';
+        $commands[] = '<ruledLine thickness="thick"/>';
+        $commands[] = '<lineFeed/>';
 
         // Public notes
         if (!empty($invoice->public_notes)) {
-            $xml .= '<text>' . htmlspecialchars($invoice->public_notes) . "\x0a" . '</text>';
+            $commands[] = '<text>' . htmlspecialchars($invoice->public_notes) . '</text>';
+            $commands[] = '<lineFeed/>';
         }
 
         // Private notes
         if (!empty($invoice->private_notes)) {
-            $xml .= '<text emphasis="true">' . htmlspecialchars($invoice->private_notes) . "\x0a" . '</text>';
+            $commands[] = '<text emphasis="true">' . htmlspecialchars($invoice->private_notes) . '</text>';
+            $commands[] = '<lineFeed/>';
         }
 
         // Feed and cut
-        $xml .= '<text>' . "\x0a\x0a\x0a" . '</text>';
-        $xml .= '<cut type="partial"/>';
+        $commands[] = '<lineFeed/>';
+        $commands[] = '<lineFeed/>';
+        $commands[] = '<lineFeed/>';
+        $commands[] = '<cut type="partial"/>';
 
-        $xml .= '</root>';
+        // Build final XML with proper Star WebPRNT structure
+        $commandsStr = implode("\n      ", $commands);
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $xml .= '<StarWebPRNT xmlns="http://www.star-m.jp">' . "\n";
+        $xml .= '  <Request>' . "\n";
+        $xml .= '    <Contents>' . "\n";
+        $xml .= '      ' . $commandsStr . "\n";
+        $xml .= '    </Contents>' . "\n";
+        $xml .= '  </Request>' . "\n";
+        $xml .= '</StarWebPRNT>';
 
         return $xml;
     }
