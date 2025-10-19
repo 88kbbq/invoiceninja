@@ -129,9 +129,12 @@
                         'color': '#1f2937',
                         'font-size': '14px',
                         'font-family': "'Open Sans', 'Helvetica Neue', Arial, sans-serif",
-                        'line-height': '1.5rem',
-                        'letter-spacing': '0.02em',
-                        'background-color': 'transparent'
+                        'line-height': '1.25rem',
+                        'letter-spacing': '0',
+                        'background-color': 'transparent',
+                        'padding': '0.5rem 1rem',
+                        'border': 'none',
+                        'box-shadow': 'none'
                     },
                     ':focus': {
                         'color': '#1f2937'
