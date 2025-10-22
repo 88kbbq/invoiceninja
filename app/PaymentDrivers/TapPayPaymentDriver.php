@@ -280,6 +280,7 @@ class TapPayPaymentDriver extends BaseDriver
                         'name' => $this->client->present()->name(),
                         'email' => $this->client->present()->email(),
                     ],
+                    'three_domain_secure' => true,
                 ],
             ]);
 
