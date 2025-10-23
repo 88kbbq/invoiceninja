@@ -42,7 +42,7 @@ class KitchenPrinterController extends BaseController
                 'overrides' => $overrides,
             ]);
 
-            return $this->errorResponse('Failed to print: ' . $e->getMessage());
+            return $this->errorResponse('Failed to print: ' . $e->getMessage(), 500);
         }
     }
 
@@ -72,7 +72,7 @@ class KitchenPrinterController extends BaseController
                 'overrides' => $overrides,
             ]);
 
-            return $this->errorResponse('Failed to print via WebPRNT: ' . $e->getMessage());
+            return $this->errorResponse('Failed to print via WebPRNT: ' . $e->getMessage(), 500);
         }
     }
 
@@ -105,7 +105,7 @@ class KitchenPrinterController extends BaseController
                 'overrides' => $overrides,
             ]);
 
-            return $this->errorResponse('Failed to print: ' . $e->getMessage());
+            return $this->errorResponse('Failed to print: ' . $e->getMessage(), 500);
         }
     }
 
@@ -174,7 +174,7 @@ class KitchenPrinterController extends BaseController
                 $result
             ));
         } catch (\Throwable $e) {
-            return $this->errorResponse('Failed to send test print: ' . $e->getMessage());
+            return $this->errorResponse('Failed to send test print: ' . $e->getMessage(), 500);
         }
     }
 
@@ -239,12 +239,5 @@ class KitchenPrinterController extends BaseController
             'transport' => $result['transport'] ?? null,
             'details' => $details,
         ];
-    }
-
-    protected function errorResponse(string $message): Response
-    {
-        return response()->json([
-            'message' => $message,
-        ], 500);
     }
 }
