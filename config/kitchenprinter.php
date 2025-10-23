@@ -12,7 +12,7 @@ return [
 
     'enabled' => env('KITCHEN_PRINTER_ENABLED', false),
 
-    'default_transport' => env('KITCHEN_PRINTER_DEFAULT_TRANSPORT', 'webprnt'),
+    'default_transport' => env('KITCHEN_PRINTER_TRANSPORT', 'tcp'),
 
     'encoding' => env('KITCHEN_PRINTER_ENCODING', 'big5'),
 
