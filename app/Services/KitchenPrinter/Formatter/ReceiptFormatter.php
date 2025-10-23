@@ -242,9 +242,6 @@ XML;
         $output = '';
         $output .= chr(27) . chr(64); // Initialize printer
 
-        // Set tab stop at column 40 for quantity alignment (ESC D n1 n2 ... nk NUL)
-        $output .= chr(27) . chr(68) . chr(40) . chr(0);
-
         // Star Line Mode font sizes: ESC i a n (width multiplier)
         $font2x = chr(27) . chr(105) . chr(1) . chr(1); // 2x width (invoice#, date, time)
         $font1x = chr(27) . chr(105) . chr(1) . chr(0); // 1x width (customer, items, notes)
@@ -267,7 +264,7 @@ XML;
             $output .= $this->toBig5('到達時間: ' . $data['event_time']) . "\n";
         }
 
-        // Separator (reduced from 48 to 44)
+        // Separator
         $output .= $font1x;
         $output .= str_repeat('-', 44) . "\n";
 
@@ -284,23 +281,35 @@ XML;
             $output .= $this->toBig5('電話: ' . $data['client_phone']) . "\n";
         }
 
-        // Separator (reduced from 48 to 44)
+        // Separator
         $output .= $font1x;
         $output .= str_repeat('-', 44) . "\n";
 
-        // Line items - 1x font with TAB STOP for perfect column alignment
+        // Line items - 1x font with space padding for right-aligned quantity
         $output .= $font1x;
         foreach ($data['items'] as $item) {
             $name = $item['product'];
             $qty = $this->formatQuantity($item['quantity']);
 
-            // Use TAB character to jump to tab stop (column 40)
-            // This works regardless of Chinese/English character widths!
-            $output .= $this->toBig5($name) . chr(9) . $this->toBig5($qty) . "\n";
-            $output .= "\n"; // Blank line between items
+            // Calculate display width and pad with spaces
+            $nameDisplayWidth = $this->calculateDisplayWidth($name);
+            $maxNameWidth = 38; // Leave room for quantity
+
+            // Truncate if name too long
+            if ($nameDisplayWidth > $maxNameWidth) {
+                $name = $this->truncateToDisplayWidth($name, $maxNameWidth - 1) . '…';
+                $nameDisplayWidth = $this->calculateDisplayWidth($name);
+            }
+
+            // Calculate padding (total width ~44, minus name display width and qty length)
+            $padding = 44 - $nameDisplayWidth - strlen($qty);
+            $padding = max(1, $padding);
+
+            $line = $name . str_repeat(' ', $padding) . $qty;
+            $output .= $this->toBig5($line) . "\n\n";
         }
 
-        // Separator (reduced from 48 to 44)
+        // Separator
         $output .= $font1x;
         $output .= str_repeat('-', 44) . "\n";
 

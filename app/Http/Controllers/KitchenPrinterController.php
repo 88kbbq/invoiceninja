@@ -32,7 +32,7 @@ class KitchenPrinterController extends BaseController
             ]);
 
             return response()->json($this->buildSuccessPayload(
-                'Sent to kitchen printer',
+                'Print to Kitchen Successful',
                 $result
             ));
         } catch (\Throwable $e) {
@@ -62,7 +62,7 @@ class KitchenPrinterController extends BaseController
             ]);
 
             return response()->json($this->buildSuccessPayload(
-                'Sent to kitchen printer via WebPRNT',
+                'Print to Kitchen Successful',
                 $result
             ));
         } catch (\Throwable $e) {
@@ -95,7 +95,7 @@ class KitchenPrinterController extends BaseController
             ]);
 
             return response()->json($this->buildSuccessPayload(
-                'Sent to kitchen printer',
+                'Print to Kitchen Successful',
                 $result
             ));
         } catch (\Throwable $e) {
@@ -144,7 +144,7 @@ class KitchenPrinterController extends BaseController
         }
 
         return response()->json([
-            'message' => empty($errors) ? 'All invoices sent to kitchen printer' : 'Some invoices failed to print',
+            'message' => empty($errors) ? 'Print to Kitchen Successful' : 'Some invoices failed to print',
             'success_count' => count($results),
             'error_count' => count($errors),
             'errors' => $errors,
@@ -170,7 +170,7 @@ class KitchenPrinterController extends BaseController
             $result = $this->printerManager->testPrint($this->buildOverrides($request));
 
             return response()->json($this->buildSuccessPayload(
-                'Test ticket sent to kitchen printer',
+                'Test Print Successful',
                 $result
             ));
         } catch (\Throwable $e) {
