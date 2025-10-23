@@ -241,52 +241,72 @@ XML;
     {
         $output = '';
         $output .= chr(27) . chr(64); // Initialize printer
-        $output .= chr(27) . chr(33) . chr(48); // Double width/height
+
+        // Use GS ! n for larger fonts (4x width, 4x height)
+        // GS ! n: bits 0-2 = width (0-7), bits 4-6 = height (0-7)
+        // 0x33 = 0b00110011 = 3 (width) + 48 (height) = 4x4
+        $largeFontOn = chr(29) . chr(33) . chr(51);
+        $normalFont = chr(29) . chr(33) . chr(0);
 
         if (!empty($data['number'])) {
+            $output .= $largeFontOn;
             $output .= $data['number'] . "\n";
         }
 
         if (!empty($data['date'])) {
-            $output .= $data['date'] . "\n";
+            $output .= $largeFontOn;
+            $output .= '日期: ' . $data['date'] . "\n";
         }
 
         if (!empty($data['event_time'])) {
-            $output .= $data['event_time'] . "\n";
+            $output .= $largeFontOn;
+            $output .= '到達時間: ' . $data['event_time'] . "\n";
         }
 
+        $output .= $normalFont;
+        $output .= str_repeat('=', 32) . "\n";
+
         if (!empty($data['client_name'])) {
-            $output .= $data['client_name'] . "\n";
+            $output .= $largeFontOn;
+            $output .= '客戶: ' . $data['client_name'] . "\n";
         }
 
         if (!empty($data['client_phone'])) {
-            $output .= $data['client_phone'] . "\n";
+            $output .= $largeFontOn;
+            $output .= '電話: ' . $data['client_phone'] . "\n";
         }
 
-        $output .= str_repeat('-', 20) . "\n";
+        $output .= $normalFont;
+        $output .= str_repeat('=', 32) . "\n";
 
         foreach ($data['items'] as $item) {
             $name = $item['product'];
             $qty = $this->formatQuantity($item['quantity']);
 
-            $output .= $name;
-            $output .= str_repeat(' ', 3);
+            $output .= $largeFontOn;
+            $output .= $name . "\n";
+
+            // Quantity in inverse video with large font
             $output .= chr(27) . chr(29) . chr(66) . chr(1); // Inverse on
-            $output .= ' ' . $qty . ' ';
+            $output .= '  ' . $qty . '  ';
             $output .= chr(27) . chr(29) . chr(66) . chr(0); // Inverse off
-            $output .= "\n";
+            $output .= "\n\n";
         }
 
-        $output .= str_repeat('-', 20) . "\n";
+        $output .= $normalFont;
+        $output .= str_repeat('=', 32) . "\n";
 
         if (!empty($data['public_notes'])) {
             $output .= $data['public_notes'] . "\n";
         }
 
         if (!empty($data['private_notes'])) {
+            $output .= chr(27) . chr(33) . chr(8); // Emphasis
             $output .= $data['private_notes'] . "\n";
+            $output .= $normalFont;
         }
 
+        $output .= '列印時間: ' . $data['printed_at'] . "\n";
         $output .= "\n\n\n";
         $output .= chr(27) . chr(100) . chr(1); // Partial cut
 
