@@ -41,6 +41,8 @@ class WebPrntTransport
             'host' => $host,
             'port' => $port,
             'status' => $httpCode,
+            'payload_length' => strlen($payload),
+            'response' => $response,
         ]);
 
         return [
