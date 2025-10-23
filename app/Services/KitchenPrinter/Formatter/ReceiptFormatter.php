@@ -242,6 +242,9 @@ XML;
         $output = '';
         $output .= chr(27) . chr(64); // Initialize printer
 
+        // Set tab stop at column 40 for quantity alignment (ESC D n1 n2 ... nk NUL)
+        $output .= chr(27) . chr(68) . chr(40) . chr(0);
+
         // Star Line Mode font sizes: ESC i a n (width multiplier)
         $font2x = chr(27) . chr(105) . chr(1) . chr(1); // 2x width (invoice#, date, time)
         $font1x = chr(27) . chr(105) . chr(1) . chr(0); // 1x width (customer, items, notes)
@@ -264,14 +267,14 @@ XML;
             $output .= $this->toBig5('到達時間: ' . $data['event_time']) . "\n";
         }
 
-        // Separator
+        // Separator (reduced from 48 to 44)
         $output .= $font1x;
-        $output .= str_repeat('-', 48) . "\n";
+        $output .= str_repeat('-', 44) . "\n";
 
         // Client name - 1x font with word wrapping
         if (!empty($data['client_name'])) {
             $output .= $font1x;
-            $wrapped = $this->wordWrap('客戶: ' . $data['client_name'], 48);
+            $wrapped = $this->wordWrap('客戶: ' . $data['client_name'], 44);
             $output .= $this->toBig5($wrapped);
         }
 
@@ -281,58 +284,36 @@ XML;
             $output .= $this->toBig5('電話: ' . $data['client_phone']) . "\n";
         }
 
-        // Separator
+        // Separator (reduced from 48 to 44)
         $output .= $font1x;
-        $output .= str_repeat('-', 48) . "\n";
+        $output .= str_repeat('-', 44) . "\n";
 
-        // Line items - 1x font with columnar layout
-        // At 1x font width, Star mC-Print3 has ~48 display positions per line
+        // Line items - 1x font with TAB STOP for perfect column alignment
         $output .= $font1x;
         foreach ($data['items'] as $item) {
             $name = $item['product'];
             $qty = $this->formatQuantity($item['quantity']);
 
-            // Column widths for 1x font (~48 total display positions)
-            $nameMaxWidth = 40; // Max display width for item name
-            $qtyWidth = 6; // Display width for quantity (right-aligned)
-
-            $nameDisplayWidth = $this->calculateDisplayWidth($name);
-
-            // If name fits on one line with quantity
-            if ($nameDisplayWidth <= $nameMaxWidth) {
-                // Calculate padding
-                $paddingSpaces = 48 - $nameDisplayWidth - strlen($qty);
-                $paddingSpaces = max(1, $paddingSpaces);
-
-                $line = $name . str_repeat(' ', $paddingSpaces) . $qty;
-                $output .= $this->toBig5($line) . "\n";
-            } else {
-                // Name too long - wrap to next line, quantity on its own line
-                $wrappedName = $this->wordWrap($name, $nameMaxWidth);
-                $output .= $this->toBig5($wrappedName);
-
-                // Quantity right-aligned on next line
-                $qtyLine = str_repeat(' ', 48 - strlen($qty)) . $qty;
-                $output .= $this->toBig5($qtyLine) . "\n";
-            }
-
+            // Use TAB character to jump to tab stop (column 40)
+            // This works regardless of Chinese/English character widths!
+            $output .= $this->toBig5($name) . chr(9) . $this->toBig5($qty) . "\n";
             $output .= "\n"; // Blank line between items
         }
 
-        // Separator
+        // Separator (reduced from 48 to 44)
         $output .= $font1x;
-        $output .= str_repeat('-', 48) . "\n";
+        $output .= str_repeat('-', 44) . "\n";
 
         // Notes - 1x font
         if (!empty($data['public_notes'])) {
             $output .= $font1x;
-            $wrapped = $this->wordWrap($data['public_notes'], 48);
+            $wrapped = $this->wordWrap($data['public_notes'], 44);
             $output .= $this->toBig5($wrapped);
         }
 
         if (!empty($data['private_notes'])) {
             $output .= chr(27) . chr(69); // Emphasis on (Star Line Mode)
-            $wrapped = $this->wordWrap($data['private_notes'], 48);
+            $wrapped = $this->wordWrap($data['private_notes'], 44);
             $output .= $this->toBig5($wrapped);
             $output .= chr(27) . chr(70); // Emphasis off (Star Line Mode)
         }
