@@ -286,29 +286,30 @@ XML;
         $output .= str_repeat('-', 48) . "\n";
 
         // Line items - 2x font with columnar layout
-        // At 2x width, Star mC-Print3 has ~24 characters per line
+        // At 2x width, Star mC-Print3 has ~24 display positions per line
+        // Chinese chars = 2 positions, English/numbers = 1 position
         $output .= $font2x;
         foreach ($data['items'] as $item) {
             $name = $item['product'];
             $qty = $this->formatQuantity($item['quantity']);
 
-            // Truncate long names to fit column layout (max 17 chars for name at 2x font)
-            $maxNameWidth = 17;
-            if (mb_strlen($name, 'UTF-8') > $maxNameWidth) {
-                $name = mb_substr($name, 0, $maxNameWidth - 1, 'UTF-8') . '…';
+            // Calculate display width (Chinese = 2, ASCII = 1)
+            $maxDisplayWidth = 18; // Leave room for quantity
+            $qtyDisplayWidth = strlen($qty);
+
+            // Truncate name to fit within display width
+            $nameDisplayWidth = $this->calculateDisplayWidth($name);
+            if ($nameDisplayWidth > $maxDisplayWidth) {
+                $name = $this->truncateToDisplayWidth($name, $maxDisplayWidth - 1) . '…';
+                $nameDisplayWidth = $this->calculateDisplayWidth($name);
             }
 
-            // Multi-byte aware padding for proper column alignment
-            $nameWidth = 17;
-            $qtyWidth = 4;
+            // Calculate padding needed (in half-width spaces)
+            $totalWidth = 22; // Total display positions available
+            $paddingSpaces = $totalWidth - $nameDisplayWidth - $qtyDisplayWidth;
+            $paddingSpaces = max(1, $paddingSpaces); // At least 1 space
 
-            // Pad the name (left-aligned)
-            $namePadded = $name . str_repeat(' ', max(0, $nameWidth - mb_strlen($name, 'UTF-8')));
-
-            // Pad the quantity (right-aligned)
-            $qtyPadded = str_repeat(' ', max(0, $qtyWidth - strlen($qty))) . $qty;
-
-            $line = $namePadded . ' ' . $qtyPadded;
+            $line = $name . str_repeat(' ', $paddingSpaces) . $qty;
 
             $output .= $this->toBig5($line) . "\n";
         }
@@ -443,5 +444,58 @@ XML;
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    /**
+     * Calculate display width of string (Chinese = 2, ASCII = 1).
+     */
+    protected function calculateDisplayWidth(string $text): int
+    {
+        $width = 0;
+        $length = mb_strlen($text, 'UTF-8');
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = mb_substr($text, $i, 1, 'UTF-8');
+
+            // Check if character is full-width (Chinese, Japanese, Korean, etc.)
+            if (preg_match('/[\x{4E00}-\x{9FFF}\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{FF00}-\x{FFEF}]/u', $char)) {
+                $width += 2; // Full-width character
+            } else {
+                $width += 1; // Half-width character
+            }
+        }
+
+        return $width;
+    }
+
+    /**
+     * Truncate string to fit within display width.
+     */
+    protected function truncateToDisplayWidth(string $text, int $maxWidth): string
+    {
+        $result = '';
+        $currentWidth = 0;
+        $length = mb_strlen($text, 'UTF-8');
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = mb_substr($text, $i, 1, 'UTF-8');
+
+            // Calculate character width
+            if (preg_match('/[\x{4E00}-\x{9FFF}\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{FF00}-\x{FFEF}]/u', $char)) {
+                $charWidth = 2; // Full-width
+            } else {
+                $charWidth = 1; // Half-width
+            }
+
+            // Check if adding this character would exceed max width
+            if ($currentWidth + $charWidth > $maxWidth) {
+                break;
+            }
+
+            $result .= $char;
+            $currentWidth += $charWidth;
+        }
+
+        return $result;
     }
 }
