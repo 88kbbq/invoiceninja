@@ -243,13 +243,12 @@ XML;
         $output .= chr(27) . chr(64); // Initialize printer
 
         // Star Line Mode font sizes: ESC i a n (width multiplier)
-        $font3x = chr(27) . chr(105) . chr(1) . chr(2); // 3x width (invoice # only)
-        $font2x = chr(27) . chr(105) . chr(1) . chr(1); // 2x width (items, date, time)
-        $font1x = chr(27) . chr(105) . chr(1) . chr(0); // 1x width (customer, notes)
+        $font2x = chr(27) . chr(105) . chr(1) . chr(1); // 2x width (invoice#, date, time)
+        $font1x = chr(27) . chr(105) . chr(1) . chr(0); // 1x width (customer, items, notes)
 
-        // Invoice/Quote number - 3x font (largest)
+        // Invoice/Quote number - 2x font
         if (!empty($data['number'])) {
-            $output .= $font3x;
+            $output .= $font2x;
             $output .= $this->toBig5($data['number']) . "\n\n";
         }
 
@@ -269,10 +268,11 @@ XML;
         $output .= $font1x;
         $output .= str_repeat('-', 48) . "\n";
 
-        // Client name - 1x font
+        // Client name - 1x font with word wrapping
         if (!empty($data['client_name'])) {
             $output .= $font1x;
-            $output .= $this->toBig5('客戶: ' . $data['client_name']) . "\n";
+            $wrapped = $this->wordWrap('客戶: ' . $data['client_name'], 48);
+            $output .= $this->toBig5($wrapped);
         }
 
         // Client phone - 1x font
@@ -285,33 +285,38 @@ XML;
         $output .= $font1x;
         $output .= str_repeat('-', 48) . "\n";
 
-        // Line items - 2x font with columnar layout
-        // At 2x width, Star mC-Print3 has ~24 display positions per line
-        // Chinese chars = 2 positions, English/numbers = 1 position
-        $output .= $font2x;
+        // Line items - 1x font with columnar layout
+        // At 1x font width, Star mC-Print3 has ~48 display positions per line
+        $output .= $font1x;
         foreach ($data['items'] as $item) {
             $name = $item['product'];
             $qty = $this->formatQuantity($item['quantity']);
 
-            // Calculate display width (Chinese = 2, ASCII = 1)
-            $maxDisplayWidth = 18; // Leave room for quantity
-            $qtyDisplayWidth = strlen($qty);
+            // Column widths for 1x font (~48 total display positions)
+            $nameMaxWidth = 40; // Max display width for item name
+            $qtyWidth = 6; // Display width for quantity (right-aligned)
 
-            // Truncate name to fit within display width
             $nameDisplayWidth = $this->calculateDisplayWidth($name);
-            if ($nameDisplayWidth > $maxDisplayWidth) {
-                $name = $this->truncateToDisplayWidth($name, $maxDisplayWidth - 1) . '…';
-                $nameDisplayWidth = $this->calculateDisplayWidth($name);
+
+            // If name fits on one line with quantity
+            if ($nameDisplayWidth <= $nameMaxWidth) {
+                // Calculate padding
+                $paddingSpaces = 48 - $nameDisplayWidth - strlen($qty);
+                $paddingSpaces = max(1, $paddingSpaces);
+
+                $line = $name . str_repeat(' ', $paddingSpaces) . $qty;
+                $output .= $this->toBig5($line) . "\n";
+            } else {
+                // Name too long - wrap to next line, quantity on its own line
+                $wrappedName = $this->wordWrap($name, $nameMaxWidth);
+                $output .= $this->toBig5($wrappedName);
+
+                // Quantity right-aligned on next line
+                $qtyLine = str_repeat(' ', 48 - strlen($qty)) . $qty;
+                $output .= $this->toBig5($qtyLine) . "\n";
             }
 
-            // Calculate padding needed (in half-width spaces)
-            $totalWidth = 22; // Total display positions available
-            $paddingSpaces = $totalWidth - $nameDisplayWidth - $qtyDisplayWidth;
-            $paddingSpaces = max(1, $paddingSpaces); // At least 1 space
-
-            $line = $name . str_repeat(' ', $paddingSpaces) . $qty;
-
-            $output .= $this->toBig5($line) . "\n";
+            $output .= "\n"; // Blank line between items
         }
 
         // Separator
@@ -321,12 +326,14 @@ XML;
         // Notes - 1x font
         if (!empty($data['public_notes'])) {
             $output .= $font1x;
-            $output .= $this->toBig5($data['public_notes']) . "\n";
+            $wrapped = $this->wordWrap($data['public_notes'], 48);
+            $output .= $this->toBig5($wrapped);
         }
 
         if (!empty($data['private_notes'])) {
             $output .= chr(27) . chr(69); // Emphasis on (Star Line Mode)
-            $output .= $this->toBig5($data['private_notes']) . "\n";
+            $wrapped = $this->wordWrap($data['private_notes'], 48);
+            $output .= $this->toBig5($wrapped);
             $output .= chr(27) . chr(70); // Emphasis off (Star Line Mode)
         }
 
@@ -336,7 +343,7 @@ XML;
         $output .= "\n\n\n";
         $output .= chr(27) . chr(100) . chr(1); // Partial cut
 
-        return $output; // Don't call toBig5() on entire output - it corrupts control codes!
+        return $output;
     }
 
     /**
@@ -444,6 +451,46 @@ XML;
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    /**
+     * Word-wrap text respecting display width and word boundaries.
+     */
+    protected function wordWrap(string $text, int $maxWidth): string
+    {
+        $lines = [];
+        $currentLine = '';
+        $currentWidth = 0;
+
+        // Split on spaces to get words
+        $words = preg_split('/(\s+)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        foreach ($words as $word) {
+            $wordWidth = $this->calculateDisplayWidth($word);
+
+            // If adding this word would exceed max width
+            if ($currentWidth + $wordWidth > $maxWidth && $currentWidth > 0) {
+                // Save current line and start new one
+                $lines[] = $currentLine;
+                $currentLine = '';
+                $currentWidth = 0;
+
+                // Skip leading whitespace on new line
+                if (trim($word) === '') {
+                    continue;
+                }
+            }
+
+            $currentLine .= $word;
+            $currentWidth += $wordWidth;
+        }
+
+        // Add last line if not empty
+        if ($currentLine !== '') {
+            $lines[] = $currentLine;
+        }
+
+        return implode("\n", $lines) . "\n";
     }
 
     /**
