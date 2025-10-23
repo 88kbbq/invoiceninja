@@ -128,4 +128,29 @@ trait Utilities
 
         return (int) round($amount * 100);
     }
+
+    /**
+     * Generate result_url structure for 3DS transactions
+     *
+     * @return array
+     */
+    public function getResultUrl(): array
+    {
+        $payment_hash = $this->payment_hash->hash;
+        $company_key = $this->client->company->company_key;
+        $company_gateway_id = $this->company_gateway->hashed_id;
+
+        return [
+            'frontend_redirect_url' => route('tappay.3ds_redirect', [
+                'company_key' => $company_key,
+                'company_gateway_id' => $company_gateway_id,
+                'hash' => $payment_hash,
+            ]),
+            'backend_notify_url' => route('tappay.3ds_redirect.post', [
+                'company_key' => $company_key,
+                'company_gateway_id' => $company_gateway_id,
+                'hash' => $payment_hash,
+            ]),
+        ];
+    }
 }

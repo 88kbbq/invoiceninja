@@ -4,9 +4,4 @@
         <a href="https://invoiceninja.com">InvoiceNinja</a>  &copy; 2021 Invoice Ninja LLC.
     </div>
 </footer>
-
-@if(config('kitchenprinter.enabled'))
-    <script src="{{ asset('modules/kitchen-printer/inject.js') }}"></script>
-@endif
-
 </body>

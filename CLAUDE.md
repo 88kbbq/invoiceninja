@@ -100,128 +100,102 @@ git push origin production  # Triggers deployment
 
 ---
 
-## Digital Ocean App Platform Deployment
+## DigitalOcean Droplet Deployment
 
 ### Architecture
 
 **Deployment Pipeline:**
 ```
-GitHub (production branch)
-    ↓ (auto-deploy on push)
-Digital Ocean App Platform
-    ↓ (builds & deploys)
-Running Application
-    ↓ (connects to)
+Local development machine (production branch)
+    ↓ (git push for history/auditing)
+GitHub: 88kbbq/invoiceninja (production)
+    ↓ (manual sync)
+DigitalOcean Droplet 128.199.146.209 (/var/www/invoiceninja)
+    ↓
 Managed MySQL Database (dbaas-db-9899155)
 ```
 
-**App Platform Configuration:**
+**Droplet Details:**
 
-- **App ID:** `c2183c5e-0f8d-4d94-9069-b225418d0fc2`
-- **Region:** Singapore (sgp1)
-- **Instance:** professional-xs
-- **Database:** dbaas-db-9899155 (MySQL 8.0)
-- **Config File:** `.do/app.yaml`
+- **Public IP / Hostname:** 128.199.146.209 (invoice.88k.com.tw)
+- **Stack:** Ubuntu + Nginx + PHP 8.2 + Laravel 11.46+
+- **Project Root:** `/var/www/invoiceninja`
+- **React Bundles:** `/var/www/invoiceninja/public/react`
+- **System User:** `www-data` owns web files; deploy as `root` or privileged user, then fix ownership.
 
-**Key Configuration Files:**
+**Critical Files & Directories:**
 
-1. **`.do/app.yaml`** - App Platform specification
-   - Defines services, databases, environment variables
-   - Build and run commands
-   - DO NOT modify buildpack selection manually (auto-detected)
-
-2. **`nginx.conf`** - Nginx configuration (location blocks only)
-   - Based on production server config at invoice.88k.com.tw
-   - Heroku buildpack inserts this into their nginx template
-   - Only include `location {}` directives, NOT `server {}` blocks
-
-3. **`Procfile`** - Process definitions (if needed)
-   - Currently using run_command in app.yaml instead
+1. **`.env`** – Production secrets (APP_KEY, database credentials, API keys). Never commit or overwrite without backup.
+2. **`app/Services/KitchenPrinterService.php`** – WebPRNT implementation.
+3. **`config/kitchenprinter.php`** – Feature toggles and printer options.
+4. **`resources/views/react/head.blade.php`** – References hashed React bundles.
+5. **`nginx.conf`** – Reference config; actual live config lives under `/etc/nginx/`.
+6. **`scripts/setup-modules.sh`** – Legacy helper (keep for history).
 
 **Environment Variables:**
 
-Set via Digital Ocean Dashboard → App → Settings → Environment Variables
-
-Required:
+Stored in `/var/www/invoiceninja/.env`. Verify APP_KEY matches database encryption key before deploying. Module settings:
 ```
-APP_KEY=base64:... (generate with: php artisan key:generate --show)
-APP_URL=https://invoice-ninja-production-xxxxx.ondigitalocean.app
-```
-
-Module-specific:
-```
-KITCHEN_PRINTER_ENABLED=false  (set to true when printer ready)
-CLOUDPRNT_URL=http://printer-ip:8080/CloudPRNT
-CLOUDPRNT_MAC=00:11:62:XX:XX:XX
+KITCHEN_PRINTER_ENABLED=false
+KITCHEN_PRINTER_WEBPRNT_SCHEME=https
+KITCHEN_PRINTER_WEBPRNT_IP=192.168.50.39    # Home test printer
+KITCHEN_PRINTER_WEBPRNT_PORT=443
+KITCHEN_PRINTER_WEBPRNT_PATH=/StarWebPRNT/SendMessage
+KITCHEN_PRINTER_WEBPRNT_VERIFY_SSL=false
 ```
 
-Database (auto-populated from managed database):
+Database connection (already in `.env`):
 ```
 DB_CONNECTION=mysql
-DB_HOST=${dbaas-db-9899155.HOSTNAME}
-DB_PORT=${dbaas-db-9899155.PORT}
-DB_DATABASE=${dbaas-db-9899155.DATABASE}
-DB_USERNAME=${dbaas-db-9899155.USERNAME}
-DB_PASSWORD=${dbaas-db-9899155.PASSWORD}
+DB_HOST=<managed-db-hostname>
+DB_PORT=25060  # verify actual port
+DB_DATABASE=...
+DB_USERNAME=...
+DB_PASSWORD=...
 ```
 
-**Common Commands:**
+**Standard Backend Deployment Steps:**
+
+1. Commit and push changes to `production` on GitHub for record keeping.
+2. SSH to droplet: `ssh root@128.199.146.209`.
+3. Navigate to project: `cd /var/www/invoiceninja`.
+4. Pull latest code: `git pull origin production`.
+5. Install PHP dependencies: `composer install --no-dev --optimize-autoloader --no-interaction`.
+6. Run database migrations: `php artisan migrate --force --no-interaction`.
+7. Refresh caches: `php artisan optimize:clear && php artisan optimize`.
+8. If queue workers run, restart Supervisor/queue processes as needed.
+
+**React UI Deployment (from local machine):**
+
+1. In `~/InvoiceNinja/invoiceninja-ui`, run `npm install` (first time) then `npm run build`.
+2. Rsync built bundles:
+   ```bash
+   rsync -avz --delete dist/react/ root@128.199.146.209:/var/www/invoiceninja/public/react/
+   ```
+3. Fix ownership: `ssh root@128.199.146.209 "chown -R www-data:www-data /var/www/invoiceninja/public/react/"`.
+4. Clear caches: `ssh root@128.199.146.209 "cd /var/www/invoiceninja && php artisan optimize:clear"`.
+
+**Services & Useful Commands:**
 
 ```bash
-# List apps
-doctl apps list
+# Nginx and PHP-FPM status
+systemctl status nginx
+systemctl status php8.2-fpm
 
-# Get app details
-doctl apps get c2183c5e-0f8d-4d94-9069-b225418d0fc2
+# Restart services after config changes
+systemctl restart nginx
+systemctl reload php8.2-fpm
 
-# View logs
-doctl apps logs c2183c5e-0f8d-4d94-9069-b225418d0fc2 --follow
-
-# Trigger manual deployment
-doctl apps create-deployment c2183c5e-0f8d-4d94-9069-b225418d0fc2
-
-# List deployments
-doctl apps list-deployments c2183c5e-0f8d-4d94-9069-b225418d0fc2
-
-# Database info
-doctl databases get 025b9b40-3f0d-4ab6-b364-e0389b65e44a
+# Laravel scheduler / queue (if configured)
+php artisan queue:restart
+php artisan schedule:run
 ```
 
-### Deployment Process
-
-**Automatic (on git push):**
-1. Developer pushes to `production` branch
-2. GitHub webhook triggers App Platform
-3. App Platform clones repository
-4. Runs build_command (composer install, npm build)
-5. Creates container image
-6. Runs run_command (migrations, start web server)
-7. Routes traffic to new container (zero downtime)
-
-**Build Command:**
-```bash
-composer install --no-dev --optimize-autoloader --no-interaction
-npm ci --production
-npm run build
-```
-
-**Run Command:**
-```bash
-php artisan module:enable KitchenPrinter || true
-php artisan config:cache
-php artisan route:cache
-php artisan migrate --force --no-interaction
-composer dump-autoload
-heroku-php-nginx -C nginx.conf public/
-```
-
-**Important Notes:**
-- App Platform uses **Heroku buildpacks** (not traditional LAMP stack)
-- No `.env` file - environment variables injected directly
-- No SSH access - debugging via logs only
-- Use `heroku-php-nginx` NOT `php-fpm` directly
-- Deployments take ~5-10 minutes
-- Failed deployments auto-rollback
+**Maintenance Notes:**
+- Always create `/root/backups/` snapshots (code, DB, .env) before major changes.
+- Never overwrite `.env` without verifying APP_KEY.
+- Keep `public/react/` in sync with latest build; hashes must match Blade template.
+- Document any server-level changes (nginx, Supervisor, cron) in project notes.
 
 ---
 
@@ -424,110 +398,98 @@ composer dump-autoload -o
 
 ---
 
-## Kitchen Printer Module
+## Kitchen Printer Integration
 
-### Overview
+### Overview (January 2026)
 
-Custom Laravel module for printing invoices/quotes to Star mC-Print3 thermal printer via CloudPRNT protocol.
+Custom Laravel integration for printing invoices/quotes to a Star mC-Print3 thermal printer via **Star WebPRNT** over HTTPS. We currently validate against a **home-lab test printer** and will point the configuration to the work-location printer once production readiness is confirmed.
 
-**Location:** `Modules/KitchenPrinter/`
+**Key Locations**
+- Backend service: `app/Services/KitchenPrinterService.php`
+- Controller: `app/Http/Controllers/KitchenPrinterController.php`
+- Configuration: `config/kitchenprinter.php`
+- API routes: `routes/api.php` (`kitchen-print/*`)
+- React UI hooks: `invoiceninja-ui/src/pages/**/usePrintToKitchen.tsx`
 
-**Features:**
-- Print individual invoices/quotes to kitchen printer
-- Bulk print multiple items
-- Kitchen receipt formatting (no prices - items and quantities only)
-- JavaScript UI integration (auto-adds print buttons)
-- CloudPRNT protocol support
-- Star Document Markup formatting
+**Features**
+- Print single invoices or quotes via Star WebPRNT XML.
+- Bulk print multiple invoices.
+- Receipt formatting without prices/totals.
+- Custom fields for event time/date.
+- Test endpoints for connection + sample print.
 
 ### API Endpoints
 
 ```
-POST   /api/v1/invoices/{id}/print_kitchen
-POST   /api/v1/quotes/{id}/print_kitchen
-POST   /api/v1/invoices/bulk_print_kitchen
+POST   /api/v1/kitchen-print/invoice/{id}
+POST   /api/v1/kitchen-print/quote/{id}
+POST   /api/v1/kitchen-print/invoices/bulk
 GET    /api/v1/kitchen/test-connection
+GET    /api/v1/kitchen/test-print
+POST   /api/v1/kitchen-print/invoice-webprnt/{id}   # Direct WebPRNT XML test
 ```
 
-**Authentication:** Requires `X-API-TOKEN` header
+**Authentication:** `X-API-TOKEN` header required.
 
-**Example Request:**
 ```bash
-curl -X POST "https://invoice.88k.com.tw/api/v1/invoices/WJxbojagwO/print_kitchen" \
-  -H "X-API-TOKEN: your-token-here" \
-  -H "X-Requested-With: XMLHttpRequest" \
-  -H "Content-Type: application/json"
+curl -X POST "https://invoice.88k.com.tw/api/v1/kitchen-print/invoice/WJxbojagwO"   -H "X-API-TOKEN: your-token-here"   -H "X-Requested-With: XMLHttpRequest"   -H "Content-Type: application/json"
 ```
 
-**Example Response:**
-```json
-{
-  "message": "Kitchen receipt sent successfully",
-  "invoice_number": "880006",
-  "print_job_id": "job-xyz-123"
-}
-```
-
-### Module Architecture
+### Backend Architecture
 
 ```
-KitchenPrinter/
-├── app/
-│   ├── Http/Controllers/
-│   │   └── KitchenPrintController.php  # API endpoints
-│   ├── Providers/
-│   │   ├── KitchenPrinterServiceProvider.php  # Service registration
-│   │   └── RouteServiceProvider.php           # Route registration
-│   └── Services/
-│       ├── CloudPRNTService.php        # Printer communication
-│       └── KitchenPrintFormatter.php   # Receipt formatting
-├── config/
-│   └── config.php                      # Module configuration
-├── routes/
-│   └── api.php                         # API routes
-└── module.json                         # Module metadata
+app/Services/KitchenPrinterService.php      # WebPRNT XML generation + HTTP client
+app/Http/Controllers/KitchenPrinterController.php
+config/kitchenprinter.php                  # Environment-driven settings
+routes/api.php                             # Route definitions (kitchen-print group)
 ```
 
-**Key Services:**
+`KitchenPrinterService` exposes:
+- `printInvoice()`, `printQuote()`, `bulkPrintInvoices()`
+- `printInvoiceWebPRNTDirect()` for raw XML testing
+- `testConnection()` and `testPrint()`
 
-1. **CloudPRNTService** (`app/Services/CloudPRNTService.php`)
-   - Handles HTTP communication with printer
-   - Implements CloudPRNT protocol
-   - Sends Star Document Markup to printer
+Logging: success and failure paths emit structured logs (`info` / `error`) with printer endpoint, payload length, and response code.
 
-2. **KitchenPrintFormatter** (`app/Services/KitchenPrintFormatter.php`)
-   - Formats invoice/quote data for printing
-   - Generates Star Document Markup
-   - Excludes prices (kitchen doesn't need pricing info)
-   - Includes: order number, items, quantities, client info, event details
+### Environment Variables (`.env`)
 
-3. **KitchenPrintController** (`app/Http/Controllers/KitchenPrintController.php`)
-   - API endpoint handlers
-   - Authorization checks
-   - Response formatting
-
-### Configuration
-
-**Environment Variables:**
 ```env
-KITCHEN_PRINTER_ENABLED=false        # Enable/disable module
-CLOUDPRNT_URL=                       # Printer CloudPRNT endpoint
-CLOUDPRNT_MAC=                       # Printer MAC address
-KITCHEN_PRINT_TEMPLATE=default       # Receipt template
+KITCHEN_PRINTER_ENABLED=false
+KITCHEN_PRINTER_IP=192.168.50.39                  # fallback IP
+KITCHEN_PRINTER_PORT=9100                         # raw TCP (legacy support)
+KITCHEN_PRINTER_WEBPRNT_SCHEME=https
+KITCHEN_PRINTER_WEBPRNT_IP=192.168.50.39          # home test printer (replace for work site)
+KITCHEN_PRINTER_WEBPRNT_PORT=443                  # 80 if printer only serves HTTP
+KITCHEN_PRINTER_WEBPRNT_PATH=/StarWebPRNT/SendMessage
+KITCHEN_PRINTER_WEBPRNT_VERIFY_SSL=false
+KITCHEN_PRINTER_WEBPRNT_TIMEOUT=10
 ```
 
-**Module Config:** `Modules/KitchenPrinter/config/config.php`
+### Config Snapshot (`config/kitchenprinter.php`)
+
 ```php
 return [
     'enabled' => env('KITCHEN_PRINTER_ENABLED', false),
-    'cloudprnt' => [
-        'url' => env('CLOUDPRNT_URL', ''),
-        'mac_address' => env('CLOUDPRNT_MAC', ''),
+
+    'tcp' => [
+        'ip' => env('KITCHEN_PRINTER_IP', '192.168.50.39'),
+        'port' => env('KITCHEN_PRINTER_PORT', 9100),
     ],
+
+    'webprnt' => [
+        'scheme' => env('KITCHEN_PRINTER_WEBPRNT_SCHEME', 'https'),
+        'ip' => env('KITCHEN_PRINTER_WEBPRNT_IP', env('KITCHEN_PRINTER_IP', '192.168.50.39')),
+        'port' => env('KITCHEN_PRINTER_WEBPRNT_PORT', 443),
+        'path' => env('KITCHEN_PRINTER_WEBPRNT_PATH', '/StarWebPRNT/SendMessage'),
+        'verify_ssl' => env('KITCHEN_PRINTER_WEBPRNT_VERIFY_SSL', false),
+        'timeout' => env('KITCHEN_PRINTER_WEBPRNT_TIMEOUT', 10),
+    ],
+
     'custom_fields' => [
-        'event_time' => 'custom_value1',  # Invoice custom field for event time
-        'event_date' => 'custom_value2',  # Invoice custom field for event date
+        'event_time' => 'custom_value1',
+        'event_date' => 'custom_value2',
     ],
+
     'include' => [
         'invoice_number' => true,
         'due_date' => true,
@@ -535,62 +497,69 @@ return [
         'client_name' => true,
         'client_phone' => true,
         'item_descriptions' => true,
-        'item_prices' => false,  # Kitchen doesn't need prices
-        'totals' => false,       # Kitchen doesn't need totals
+        'item_prices' => false,
+        'totals' => false,
     ],
 ];
 ```
 
 ### UI Integration
 
-**JavaScript Injection:** `public/modules/kitchen-printer/inject.js`
+**React Hooks:**
+- `invoiceninja-ui/src/pages/invoices/common/hooks/usePrintToKitchen.tsx`
+- `invoiceninja-ui/src/pages/quotes/common/hooks/usePrintToKitchen.tsx`
 
-Automatically adds "Print to Kitchen" buttons to:
-- Invoice action dropdowns
-- Quote action dropdowns
-- Bulk action toolbar
+Each hook injects "Print to Kitchen" actions into the respective UI components and calls the `/api/v1/kitchen-print/...` endpoints. Buttons appear in the entity action menus plus the bulk action toolbar.
 
-**How it works:**
-1. Loaded conditionally when `KITCHEN_PRINTER_ENABLED=true`
-2. Uses MutationObserver to detect invoice/quote pages
-3. Injects print buttons into existing UI
-4. Makes API calls to print endpoints
-5. Shows toast notifications for feedback
+**Deployment Notes:**
+1. Build UI: `npm run build` from `~/InvoiceNinja/invoiceninja-ui`.
+2. Sync bundles: `rsync -avz --delete dist/react/ root@128.199.146.209:/var/www/invoiceninja/public/react/`.
+3. Fix ownership + caches:
+   ```bash
+   ssh root@128.199.146.209 "chown -R www-data:www-data /var/www/invoiceninja/public/react/"
+   ssh root@128.199.146.209 "cd /var/www/invoiceninja && php artisan optimize:clear"
+   ```
 
-**Template modification:** `resources/views/footer.blade.php`
-```blade
-@if(config('kitchenprinter.enabled'))
-    <script src="{{ asset('modules/kitchen-printer/inject.js') }}"></script>
-@endif
+### WebPRNT Primer
+
+- WebPRNT is HTTPS-based; printer exposes `/StarWebPRNT/SendMessage`.
+- We POST Star WebPRNT XML directly (no intermediate cloud job queues).
+- Ensure printer certificates/SSL options align with `KITCHEN_PRINTER_WEBPRNT_VERIFY_SSL`.
+- Home test printer currently reachable at `https://192.168.50.39/StarWebPRNT/SendMessage` (update for work site after rollout).
+
+**Typical WebPRNT XML Snippet:**
+```xml
+<StarWebPRNT xmlns="http://www.star-m.jp">
+  <Request>
+    <Contents>
+      <text emphasis="true" width="2" height="2">*** KITCHEN ORDER ***</text>
+      <lineFeed/>
+      <text>Order #: 880006</text>
+      <lineFeed/>
+      <cut type="partial"/>
+    </Contents>
+  </Request>
+</StarWebPRNT>
 ```
 
-### Star CloudPRNT Protocol
+### Testing & Troubleshooting
 
-**Overview:**
-- HTTP-based protocol for cloud printing
-- Star mC-Print3 thermal printer support
-- Document formatting using Star Document Markup
+```bash
+# Test connectivity
+curl -X GET "https://invoice.88k.com.tw/api/v1/kitchen/test-connection"   -H "X-API-TOKEN: YOUR_API_TOKEN"   -H "X-Requested-With: XMLHttpRequest"
 
-**CloudPRNT Workflow:**
-1. POST print job to printer URL
-2. Printer responds with job ID
-3. Upload print data (Star Document Markup) to job endpoint
-4. Printer processes and prints
+# Smoke test print payload
+curl -X GET "https://invoice.88k.com.tw/api/v1/kitchen/test-print"   -H "X-API-TOKEN: YOUR_API_TOKEN"   -H "X-Requested-With: XMLHttpRequest"
 
-**Star Document Markup Example:**
-```
-[magnify: width 2; height 2]
-[align: center]
-*** KITCHEN ORDER ***
-[magnify: width 1; height 1]
-[align: left]
-Order #: 880006
-[cut: feed; partial]
+# Direct WebPRNT print (bypasses TCP fallback)
+curl -X POST "https://invoice.88k.com.tw/api/v1/kitchen-print/invoice-webprnt/WJxbojagwO"   -H "X-API-TOKEN: YOUR_API_TOKEN"   -H "X-Requested-With: XMLHttpRequest"
 ```
 
-**Resources:**
-- CloudPRNT Documentation: https://www.star-m.jp/products/s_print/CloudPRNTSDK/
-- Star Document Markup: https://www.star-m.jp/products/s_print/sdk/StarWebPrintSDK/Documentation/en/
+Troubleshooting order:
+1. Check `.env` overrides (`KITCHEN_PRINTER_WEBPRNT_*`).
+2. `tail -f /var/www/invoiceninja/storage/logs/laravel.log` while printing.
+3. From droplet: `curl -k https://<printer-ip>/StarWebPRNT/SendMessage` to ensure reachability.
+4. Confirm printer network path once moved from home test network to work location.
 
 ---
 
@@ -1418,8 +1387,11 @@ protected function renderStarMarkup(array $data): string
 # Local development
 tail -f storage/logs/laravel.log
 
-# Digital Ocean App Platform
-doctl apps logs c2183c5e-0f8d-4d94-9069-b225418d0fc2 --follow
+# Production droplet (Laravel logs)
+ssh root@128.199.146.209 "tail -f /var/www/invoiceninja/storage/logs/laravel.log"
+
+# Nginx error log
+ssh root@128.199.146.209 "tail -f /var/log/nginx/error.log"
 ```
 
 **Enable debug mode (LOCAL ONLY):**
@@ -1459,33 +1431,55 @@ php artisan migrate
    git commit -m "Descriptive commit message"
    ```
 
-2. **Push to production branch:**
+2. **Push to production branch (maintains GitHub history):**
    ```bash
-   git push origin production  # Auto-deploys!
+   git push origin production
    ```
 
-3. **Monitor deployment:**
+3. **Build and sync React bundles when UI changed:**
    ```bash
-   doctl apps logs c2183c5e-0f8d-4d94-9069-b225418d0fc2 --follow
+   cd ~/InvoiceNinja/invoiceninja-ui
+   npm run build
+   rsync -avz --delete dist/react/ root@128.199.146.209:/var/www/invoiceninja/public/react/
+   ssh root@128.199.146.209 "chown -R www-data:www-data /var/www/invoiceninja/public/react/"
    ```
 
-4. **Verify deployment:**
-   - Check app URL loads
-   - Test critical functionality
-   - Check for errors in logs
+4. **Deploy backend code on droplet:**
+   ```bash
+   ssh root@128.199.146.209 <<'EOF'
+   cd /var/www/invoiceninja
+   git pull origin production
+   composer install --no-dev --optimize-autoloader --no-interaction
+   php artisan migrate --force --no-interaction
+   php artisan optimize:clear
+   php artisan optimize
+   EOF
+   ```
+
+5. **Verify deployment:**
+   - Load https://invoice.88k.com.tw (hard refresh after UI changes)
+   - Exercise key workflows (login, invoices, KitchenPrinter flow)
+   - Check logs: `tail -n 100 storage/logs/laravel.log` and `/var/log/nginx/error.log`
 
 ### Rollback Procedure
 
-**Via Digital Ocean Dashboard:**
-1. Go to Apps → invoice-ninja-production → Deployments
-2. Find last working deployment
-3. Click "Rollback"
+**Preferred (Git revert + redeploy):**
+1. Identify bad commit hash.
+2. Locally run `git revert <bad-commit-hash>` (or revert range).
+3. Push to `production`: `git push origin production`.
+4. SSH to droplet and pull latest: `cd /var/www/invoiceninja && git pull origin production`.
+5. If the reverted change introduced migrations, run `php artisan migrate --force` (reverts run automatically when defined).
 
-**Via Git:**
+**Emergency (quick restore on droplet):**
 ```bash
-git revert <bad-commit-hash>
-git push origin production  # Deploys reverted code
+ssh root@128.199.146.209
+cd /var/www/invoiceninja
+git checkout <last-known-good-hash>
+composer install --no-dev --optimize-autoloader --no-interaction
+php artisan migrate:rollback --step=1  # if needed
+php artisan optimize:clear
 ```
+Follow up by resetting `production` branch to a good state and pushing so future pulls stay consistent.
 
 ---
 
@@ -1505,13 +1499,14 @@ git push origin production  # Deploys reverted code
 - **Laracasts (video tutorials):** https://laracasts.com
 
 ### Digital Ocean
-- **App Platform Docs:** https://docs.digitalocean.com/products/app-platform/
+- **Droplet Docs:** https://docs.digitalocean.com/products/droplets/
 - **Managed Databases:** https://docs.digitalocean.com/products/databases/
+- **Cloud Firewalls:** https://docs.digitalocean.com/products/networking/firewalls/
 - **doctl CLI:** https://docs.digitalocean.com/reference/doctl/
 
-### Star CloudPRNT
-- **CloudPRNT SDK:** https://github.com/star-micronics/cloudprnt-sdk
-- **Documentation:** https://www.star-m.jp/products/s_print/CloudPRNTSDK/Documentation/en/
+### Star WebPRNT
+- **WebPRNT SDK:** https://www.star-m.jp/products/s_print/StarWebPRNTSDK/index.html
+- **XML Reference:** https://www.star-m.jp/products/s_print/StarWebPRNTSDK/Documents/
 - **Star Document Markup:** https://www.star-m.jp/products/s_print/sdk/StarWebPrintSDK/Documentation/en/
 
 ### TapPay Payment Gateway
@@ -1537,7 +1532,7 @@ git push origin production  # Deploys reverted code
 
 1. **Check logs first**
    - Application logs: `storage/logs/laravel.log`
-   - Nginx logs (App Platform): via `doctl apps logs`
+   - Nginx logs (droplet): `/var/log/nginx/error.log`
    - Database logs: via Digital Ocean dashboard
 
 2. **Check configuration**

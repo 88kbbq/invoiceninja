@@ -23,6 +23,12 @@ class TapPayCreditCardPayment {
         // Cache DOM elements early so we can surface configuration errors in the UI
         this.cacheElements();
 
+        // Disable pay button and show loading state immediately
+        if (this.elements.payNowButton) {
+            this.elements.payNowButton.disabled = true;
+            this.showLoadingMessage('Initializing payment system...');
+        }
+
         // Get configuration from meta tags
         this.appId = this.getConfigValue('app-id');
         this.appKey = this.getConfigValue('app-key');
@@ -45,11 +51,11 @@ class TapPayCreditCardPayment {
         sdkScript.addEventListener('error', (event) => {
             console.error('TapPay SDK script error event', event);
             this.showConfigurationError();
+            return;
         });
 
         if (!this.appId || !this.appKey || !this.serverType) {
             console.error('TapPay configuration missing');
-
             this.showConfigurationError();
             return;
         }
@@ -58,6 +64,11 @@ class TapPayCreditCardPayment {
             .then(() => {
                 this.initializeTapPay();
                 this.attachEventListeners();
+                // Enable pay button after SDK is ready
+                if (this.elements.payNowButton) {
+                    this.elements.payNowButton.disabled = false;
+                }
+                this.hideLoadingMessage();
             })
             .catch(() => {
                 console.error('TapPay SDK failed to load');
@@ -359,18 +370,20 @@ class TapPayCreditCardPayment {
 
     waitForSDK() {
         return new Promise((resolve, reject) => {
-            const maxAttempts = 40;
+            const maxAttempts = 30;  // 3 seconds instead of 4
             const interval = 100;
             let attempts = 0;
 
             const check = () => {
                 if (window.TPDirect) {
+                    console.log('TapPay SDK loaded successfully');
                     resolve();
                     return;
                 }
 
                 attempts += 1;
                 if (attempts > maxAttempts) {
+                    console.error('TapPay SDK failed to load within timeout');
                     reject();
                     return;
                 }
@@ -408,6 +421,28 @@ class TapPayCreditCardPayment {
     submitForm() {
         if (this.elements.serverResponseForm) {
             this.elements.serverResponseForm.submit();
+        }
+    }
+
+    /**
+     * Show loading message to user
+     */
+    showLoadingMessage(message) {
+        if (this.elements.errorsDiv) {
+            this.elements.errorsDiv.textContent = message;
+            this.elements.errorsDiv.classList.remove('alert-failure');
+            this.elements.errorsDiv.classList.add('alert-info');
+            this.elements.errorsDiv.hidden = false;
+        }
+    }
+
+    /**
+     * Hide loading message
+     */
+    hideLoadingMessage() {
+        if (this.elements.errorsDiv) {
+            this.elements.errorsDiv.hidden = true;
+            this.elements.errorsDiv.classList.remove('alert-info');
         }
     }
 

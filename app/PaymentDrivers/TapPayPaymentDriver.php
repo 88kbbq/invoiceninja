@@ -281,6 +281,7 @@ class TapPayPaymentDriver extends BaseDriver
                         'email' => $this->client->present()->email(),
                     ],
                     'three_domain_secure' => true,
+                    'result_url' => $this->getResultUrl(),
                 ],
             ]);
 
@@ -336,6 +337,118 @@ class TapPayPaymentDriver extends BaseDriver
             );
 
             throw new PaymentFailed('Token billing request failed: ' . $e->getMessage(), $e->getCode());
+        }
+    }
+
+    /**
+     * Process 3DS confirmation after redirect from TapPay
+     *
+     * @param \App\Http\Requests\Gateways\TapPay3ds\TapPay3dsRequest $request
+     * @return mixed
+     * @throws PaymentFailed
+     */
+    public function process3dsConfirmation($request)
+    {
+        $this->init();
+        $this->setPaymentHash($request->getPaymentHash());
+
+        // Authenticate user if not already logged in
+        if (!auth()->guard('contact')->check()) {
+            $client = $request->getClient();
+            $this->client = $client;
+            auth()->guard('contact')->loginUsingId($client->contacts()->first()->id, true);
+        }
+
+        // Get transaction details from request
+        $rec_trade_id = $request->input('rec_trade_id');
+        $status = $request->input('status');
+
+        if (!$rec_trade_id) {
+            SystemLogger::dispatch(
+                ['error' => 'Missing rec_trade_id in 3DS callback', 'request' => $request->all()],
+                SystemLog::CATEGORY_GATEWAY_RESPONSE,
+                SystemLog::EVENT_GATEWAY_ERROR,
+                SystemLog::TYPE_TAPPAY,
+                $this->client,
+                $this->client->company,
+            );
+
+            throw new PaymentFailed('Missing transaction reference from TapPay 3DS callback', 400);
+        }
+
+        try {
+            // Query transaction record to get final status
+            $response = $this->gateway->post('tpc/transaction/query', [
+                'json' => [
+                    'partner_key' => $this->company_gateway->getConfigField('partnerKey'),
+                    'filters' => [
+                        'rec_trade_id' => $rec_trade_id,
+                    ],
+                ],
+            ]);
+
+            $data = json_decode($response->getBody()->getContents());
+
+            if ($data->status === 0 && isset($data->trade_records) && count($data->trade_records) > 0) {
+                $transaction = $data->trade_records[0];
+
+                // Check if payment was successful
+                if ($transaction->record_status === 0) {
+                    // Success - create payment record
+                    $amount = $this->payment_hash->data->value ?? $transaction->amount;
+
+                    $payment_record = [];
+                    $payment_record['amount'] = $amount;
+                    $payment_record['payment_type'] = PaymentType::CREDIT_CARD_OTHER;
+                    $payment_record['gateway_type_id'] = GatewayType::CREDIT_CARD;
+                    $payment_record['transaction_reference'] = $rec_trade_id;
+                    $payment_record['transaction_response'] = json_encode($transaction);
+
+                    $payment = $this->createPayment($payment_record, Payment::STATUS_COMPLETED);
+
+                    SystemLogger::dispatch(
+                        ['response' => $transaction, 'data' => $payment_record],
+                        SystemLog::CATEGORY_GATEWAY_RESPONSE,
+                        SystemLog::EVENT_GATEWAY_SUCCESS,
+                        SystemLog::TYPE_TAPPAY,
+                        $this->client,
+                        $this->client->company,
+                    );
+
+                    return redirect()->route('client.payments.show', ['payment' => $this->encodePrimaryKey($payment->id)]);
+                }
+
+                // Payment failed
+                $this->unWindGatewayFees($this->payment_hash);
+
+                SystemLogger::dispatch(
+                    ['response' => $transaction, 'error' => 'Payment failed after 3DS'],
+                    SystemLog::CATEGORY_GATEWAY_RESPONSE,
+                    SystemLog::EVENT_GATEWAY_FAILURE,
+                    SystemLog::TYPE_TAPPAY,
+                    $this->client,
+                    $this->client->company,
+                );
+
+                return $this->processUnsuccessfulTransaction($transaction);
+            }
+
+            // Query failed
+            throw new PaymentFailed($data->msg ?? 'Failed to query transaction status', $data->status ?? 500);
+
+        } catch (GuzzleException $e) {
+            $this->unWindGatewayFees($this->payment_hash);
+
+            SystemLogger::dispatch(
+                ['error' => $e->getMessage(), 'data' => $this->payment_hash],
+                SystemLog::CATEGORY_GATEWAY_RESPONSE,
+                SystemLog::EVENT_GATEWAY_ERROR,
+                SystemLog::TYPE_TAPPAY,
+                $this->client,
+                $this->client->company,
+            );
+
+            throw new PaymentFailed('Failed to verify 3DS transaction: ' . $e->getMessage(), $e->getCode());
         }
     }
 

@@ -89,9 +89,10 @@ class TaiwanEInvoiceService
      *
      * @param Payment $payment
      * @param string|null $einvoiceEmail Additional email from form
+     * @param string|null $buyerGui VAT/GUI number from form (optional override)
      * @return array ['success' => bool, 'receipt_number' => string, 'message' => string]
      */
-    public function issueReceipt(Payment $payment, ?string $einvoiceEmail = null): array
+    public function issueReceipt(Payment $payment, ?string $einvoiceEmail = null, ?string $buyerGui = null): array
     {
         try {
             // Get the first linked invoice
@@ -119,8 +120,17 @@ class TaiwanEInvoiceService
                 ? implode(',', array_unique($contactEmails))
                 : '';
 
-            // Check for GUI number (統一編號) in invoice custom_value2
-            $buyerGui = $invoice->custom_value2 ?? '';
+            // Determine buyer GUI number (統一編號) with priority:
+            // 1. User input from form (allows override)
+            // 2. Client VAT number field
+            // 3. Invoice custom_value2 (previously saved)
+            $buyerGui = $buyerGui // From request parameter
+                ?? $client->vat_number
+                ?? $invoice->custom_value2
+                ?? '';
+
+            // Clean and validate GUI (remove spaces, ensure 8 digits)
+            $buyerGui = preg_replace('/\s+/', '', $buyerGui);
             $isB2B = !empty($buyerGui) && strlen($buyerGui) === 8;
 
             // Prepare line items
@@ -203,6 +213,13 @@ class TaiwanEInvoiceService
             $payment->custom_value2 = now()->format('Y-m-d H:i:s');
             $payment->custom_value3 = 'issued';
             $payment->save();
+
+            // Save GUI number to invoice.custom_value2 for future reference
+            // (only if B2B invoice with valid 8-digit GUI)
+            if ($isB2B && !empty($buyerGui)) {
+                $invoice->custom_value2 = $buyerGui;
+                $invoice->save();
+            }
 
             return [
                 'success' => true,

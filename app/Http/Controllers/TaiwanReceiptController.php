@@ -32,11 +32,12 @@ class TaiwanReceiptController extends BaseController
      */
     public function issue(Request $request, Payment $payment): JsonResponse
     {
-        // Get optional email from request
+        // Get optional parameters from request
         $einvoiceEmail = $request->input('einvoice_email');
+        $buyerGui = $request->input('buyer_gui'); // VAT/GUI number (統一編號)
 
         // Call service to issue receipt
-        $result = $this->service->issueReceipt($payment, $einvoiceEmail);
+        $result = $this->service->issueReceipt($payment, $einvoiceEmail, $buyerGui);
 
         // Return appropriate response
         if ($result['success']) {

@@ -26,7 +26,7 @@
                 </div>
                 <div class="lg:col-span-2">
                     <div class="flex gap-4 items-center">
-                        <div class="flex-1">
+                        <div class="max-w-xs self-center">
                             <div class="tpfield tpfield--expiry" id="tappay-card-expiry"></div>
                             <div id="card-expiry-error" class="field-error hidden"></div>
                         </div>

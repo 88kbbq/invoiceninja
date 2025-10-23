@@ -12,18 +12,25 @@ return [
 
     'enabled' => env('KITCHEN_PRINTER_ENABLED', false),
 
+    'default_transport' => env('KITCHEN_PRINTER_DEFAULT_TRANSPORT', 'webprnt'),
+
+    'encoding' => env('KITCHEN_PRINTER_ENCODING', 'big5'),
+
     'tcp' => [
-        'ip' => env('KITCHEN_PRINTER_IP', '192.168.50.39'),
+        'host' => env('KITCHEN_PRINTER_IP', '192.168.50.39'),
         'port' => env('KITCHEN_PRINTER_PORT', 9100),
+        'timeout' => env('KITCHEN_PRINTER_TIMEOUT', 5),
     ],
 
     'webprnt' => [
-        'scheme' => env('KITCHEN_PRINTER_WEBPRNT_SCHEME', 'https'),
-        'ip' => env('KITCHEN_PRINTER_WEBPRNT_IP', env('KITCHEN_PRINTER_IP', '192.168.50.39')),
-        'port' => env('KITCHEN_PRINTER_WEBPRNT_PORT', 443),
+        'scheme' => env('KITCHEN_PRINTER_WEBPRNT_SCHEME', 'http'),
+        'host' => env('KITCHEN_PRINTER_WEBPRNT_HOST', env('KITCHEN_PRINTER_WEBPRNT_IP', env('KITCHEN_PRINTER_IP', '192.168.50.39'))),
+        'port' => env('KITCHEN_PRINTER_WEBPRNT_PORT'),
         'path' => env('KITCHEN_PRINTER_WEBPRNT_PATH', '/StarWebPRNT/SendMessage'),
-        'verify_ssl' => env('KITCHEN_PRINTER_WEBPRNT_VERIFY_SSL', false),
+        'verify_ssl' => filter_var(env('KITCHEN_PRINTER_WEBPRNT_VERIFY_SSL', false), FILTER_VALIDATE_BOOLEAN),
         'timeout' => env('KITCHEN_PRINTER_WEBPRNT_TIMEOUT', 10),
+        'username' => env('KITCHEN_PRINTER_WEBPRNT_USERNAME'),
+        'password' => env('KITCHEN_PRINTER_WEBPRNT_PASSWORD'),
     ],
 
     'custom_fields' => [
@@ -35,10 +42,8 @@ return [
         'invoice_number' => true,
         'due_date' => true,
         'event_time' => true,
+        'event_date' => false,
         'client_name' => true,
         'client_phone' => true,
-        'item_descriptions' => true,
-        'item_prices' => false,  // Kitchen doesn't need prices
-        'totals' => false,        // Kitchen doesn't need totals
     ],
 ];

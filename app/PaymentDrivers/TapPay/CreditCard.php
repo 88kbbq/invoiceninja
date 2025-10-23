@@ -93,6 +93,7 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
                     ],
                     'remember' => true, // Request card token for future use
                     'three_domain_secure' => true,
+                    'result_url' => $this->tappay->getResultUrl(),
                 ],
             ]);
 
@@ -382,6 +383,7 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
                 ],
                 'remember' => $store_card,
                 'three_domain_secure' => true,
+                'result_url' => $this->tappay->getResultUrl(),
             ];
 
             // LOG REQUEST - For TapPay Support

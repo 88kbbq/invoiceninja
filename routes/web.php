@@ -13,6 +13,7 @@ use App\Http\Controllers\Gateways\GoCardlessController;
 use App\Http\Controllers\Gateways\GoCardlessOAuthController;
 use App\Http\Controllers\Gateways\GoCardlessOAuthWebhookController;
 use App\Http\Controllers\Gateways\Mollie3dsController;
+use App\Http\Controllers\Gateways\TapPay3dsController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StripeConnectController;
 use App\Http\Controllers\UserController;
@@ -50,6 +51,8 @@ Route::any('nordigen/confirm', [NordigenController::class, 'confirm'])->name('no
 
 Route::get('checkout/3ds_redirect/{company_key}/{company_gateway_id}/{hash}', [Checkout3dsController::class, 'index'])->middleware('domain_db')->name('checkout.3ds_redirect');
 Route::get('mollie/3ds_redirect/{company_key}/{company_gateway_id}/{hash}', [Mollie3dsController::class, 'index'])->middleware('domain_db')->name('mollie.3ds_redirect');
+Route::get('tappay/3ds_redirect/{company_key}/{company_gateway_id}/{hash}', [TapPay3dsController::class, 'index'])->middleware('domain_db')->name('tappay.3ds_redirect');
+Route::post('tappay/3ds_redirect/{company_key}/{company_gateway_id}/{hash}', [TapPay3dsController::class, 'index'])->middleware('domain_db')->name('tappay.3ds_redirect.post');
 Route::get('gocardless/ibp_redirect/{company_key}/{company_gateway_id}/{hash}', [GoCardlessController::class, 'ibpRedirect'])->middleware('domain_db')->name('gocardless.ibp_redirect');
 Route::get('.well-known/apple-developer-merchantid-domain-association', [ApplePayDomainController::class, 'showAppleMerchantId']);
 
