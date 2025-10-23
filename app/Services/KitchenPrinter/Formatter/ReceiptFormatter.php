@@ -242,70 +242,81 @@ XML;
         $output = '';
         $output .= chr(27) . chr(64); // Initialize printer
 
-        // Use GS ! n for larger fonts (4x width, 4x height)
-        // GS ! n: bits 0-2 = width (0-7), bits 4-6 = height (0-7)
-        // 0x33 = 0b00110011 = 3 (width) + 48 (height) = 4x4
-        $largeFontOn = chr(29) . chr(33) . chr(51);
-        $normalFont = chr(29) . chr(33) . chr(0);
+        // Star Line Mode: ESC i a n for width multiplier (3x width = big enough for kitchen)
+        $largeWidth = chr(27) . chr(105) . chr(1) . chr(2); // 3x width
+        $normalSize = chr(27) . chr(105) . chr(1) . chr(0); // Normal size
 
+        // Invoice/Quote number - large
         if (!empty($data['number'])) {
-            $output .= $largeFontOn;
+            $output .= $largeWidth;
             $output .= $data['number'] . "\n";
         }
 
+        // Date - large
         if (!empty($data['date'])) {
-            $output .= $largeFontOn;
+            $output .= $largeWidth;
             $output .= '日期: ' . $data['date'] . "\n";
         }
 
+        // Event time - large
         if (!empty($data['event_time'])) {
-            $output .= $largeFontOn;
+            $output .= $largeWidth;
             $output .= '到達時間: ' . $data['event_time'] . "\n";
         }
 
-        $output .= $normalFont;
-        $output .= str_repeat('=', 32) . "\n";
+        // Separator
+        $output .= $normalSize;
+        $output .= str_repeat('-', 32) . "\n";
 
+        // Client name - large
         if (!empty($data['client_name'])) {
-            $output .= $largeFontOn;
+            $output .= $largeWidth;
             $output .= '客戶: ' . $data['client_name'] . "\n";
         }
 
+        // Client phone - large
         if (!empty($data['client_phone'])) {
-            $output .= $largeFontOn;
+            $output .= $largeWidth;
             $output .= '電話: ' . $data['client_phone'] . "\n";
         }
 
-        $output .= $normalFont;
-        $output .= str_repeat('=', 32) . "\n";
+        // Separator
+        $output .= $normalSize;
+        $output .= str_repeat('-', 32) . "\n";
 
+        // Line items - large text with emphasized quantity
         foreach ($data['items'] as $item) {
             $name = $item['product'];
             $qty = $this->formatQuantity($item['quantity']);
 
-            $output .= $largeFontOn;
+            $output .= $largeWidth;
             $output .= $name . "\n";
 
-            // Quantity in inverse video with large font
-            $output .= chr(27) . chr(29) . chr(66) . chr(1); // Inverse on
+            // Quantity in inverse video
+            $output .= chr(27) . chr(52); // Inverse on (Star Line Mode)
             $output .= '  ' . $qty . '  ';
-            $output .= chr(27) . chr(29) . chr(66) . chr(0); // Inverse off
+            $output .= chr(27) . chr(53); // Inverse off (Star Line Mode)
             $output .= "\n\n";
         }
 
-        $output .= $normalFont;
-        $output .= str_repeat('=', 32) . "\n";
+        // Separator
+        $output .= $normalSize;
+        $output .= str_repeat('-', 32) . "\n";
 
+        // Notes - normal size
         if (!empty($data['public_notes'])) {
+            $output .= $normalSize;
             $output .= $data['public_notes'] . "\n";
         }
 
         if (!empty($data['private_notes'])) {
-            $output .= chr(27) . chr(33) . chr(8); // Emphasis
+            $output .= chr(27) . chr(69); // Emphasis on (Star Line Mode)
             $output .= $data['private_notes'] . "\n";
-            $output .= $normalFont;
+            $output .= chr(27) . chr(70); // Emphasis off (Star Line Mode)
         }
 
+        // Print time - normal size
+        $output .= $normalSize;
         $output .= '列印時間: ' . $data['printed_at'] . "\n";
         $output .= "\n\n\n";
         $output .= chr(27) . chr(100) . chr(1); // Partial cut
