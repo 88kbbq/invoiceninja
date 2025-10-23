@@ -250,19 +250,19 @@ XML;
         // Invoice/Quote number - 3x font (largest)
         if (!empty($data['number'])) {
             $output .= $font3x;
-            $output .= $data['number'] . "\n\n";
+            $output .= $this->toBig5($data['number']) . "\n\n";
         }
 
         // Date - 2x font
         if (!empty($data['date'])) {
             $output .= $font2x;
-            $output .= '日期: ' . $data['date'] . "\n";
+            $output .= $this->toBig5('日期: ' . $data['date']) . "\n";
         }
 
         // Event time - 2x font
         if (!empty($data['event_time'])) {
             $output .= $font2x;
-            $output .= '到達時間: ' . $data['event_time'] . "\n";
+            $output .= $this->toBig5('到達時間: ' . $data['event_time']) . "\n";
         }
 
         // Separator
@@ -272,13 +272,13 @@ XML;
         // Client name - 1x font
         if (!empty($data['client_name'])) {
             $output .= $font1x;
-            $output .= '客戶: ' . $data['client_name'] . "\n";
+            $output .= $this->toBig5('客戶: ' . $data['client_name']) . "\n";
         }
 
         // Client phone - 1x font
         if (!empty($data['client_phone'])) {
             $output .= $font1x;
-            $output .= '電話: ' . $data['client_phone'] . "\n";
+            $output .= $this->toBig5('電話: ' . $data['client_phone']) . "\n";
         }
 
         // Separator
@@ -292,19 +292,25 @@ XML;
             $name = $item['product'];
             $qty = $this->formatQuantity($item['quantity']);
 
-            // Truncate long names to fit column layout (max 18 chars for name)
-            $maxNameWidth = 18;
-            if (mb_strlen($name) > $maxNameWidth) {
-                $name = mb_substr($name, 0, $maxNameWidth - 1) . '…';
+            // Truncate long names to fit column layout (max 17 chars for name at 2x font)
+            $maxNameWidth = 17;
+            if (mb_strlen($name, 'UTF-8') > $maxNameWidth) {
+                $name = mb_substr($name, 0, $maxNameWidth - 1, 'UTF-8') . '…';
             }
 
-            // Create two-column layout: name (left) + quantity (right)
-            // Pad name to align quantities to the right
-            $nameWidth = 18;
+            // Multi-byte aware padding for proper column alignment
+            $nameWidth = 17;
             $qtyWidth = 4;
-            $line = str_pad($name, $nameWidth) . str_pad($qty, $qtyWidth, ' ', STR_PAD_LEFT);
 
-            $output .= $line . "\n";
+            // Pad the name (left-aligned)
+            $namePadded = $name . str_repeat(' ', max(0, $nameWidth - mb_strlen($name, 'UTF-8')));
+
+            // Pad the quantity (right-aligned)
+            $qtyPadded = str_repeat(' ', max(0, $qtyWidth - strlen($qty))) . $qty;
+
+            $line = $namePadded . ' ' . $qtyPadded;
+
+            $output .= $this->toBig5($line) . "\n";
         }
 
         // Separator
@@ -314,22 +320,22 @@ XML;
         // Notes - 1x font
         if (!empty($data['public_notes'])) {
             $output .= $font1x;
-            $output .= $data['public_notes'] . "\n";
+            $output .= $this->toBig5($data['public_notes']) . "\n";
         }
 
         if (!empty($data['private_notes'])) {
             $output .= chr(27) . chr(69); // Emphasis on (Star Line Mode)
-            $output .= $data['private_notes'] . "\n";
+            $output .= $this->toBig5($data['private_notes']) . "\n";
             $output .= chr(27) . chr(70); // Emphasis off (Star Line Mode)
         }
 
         // Print time - 1x font
         $output .= $font1x;
-        $output .= '列印時間: ' . $data['printed_at'] . "\n";
+        $output .= $this->toBig5('列印時間: ' . $data['printed_at']) . "\n";
         $output .= "\n\n\n";
         $output .= chr(27) . chr(100) . chr(1); // Partial cut
 
-        return $this->toBig5($output);
+        return $output; // Don't call toBig5() on entire output - it corrupts control codes!
     }
 
     /**
