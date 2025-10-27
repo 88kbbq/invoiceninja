@@ -78,6 +78,13 @@ class TaiwanEInvoiceService
 
         // API returns code: 0 for success
         if (($responseData['code'] ?? -1) !== 0) {
+            // Log error response for debugging
+            \Log::error('Taiwan E-Invoice API Error', [
+                'endpoint' => $endpoint,
+                'response_code' => $responseData['code'] ?? null,
+                'response_msg' => $responseData['msg'] ?? null,
+                'full_response' => $responseData,
+            ]);
             throw new Exception($responseData['msg'] ?? 'Unknown API error');
         }
 
@@ -204,6 +211,18 @@ class TaiwanEInvoiceService
                 'TaxAmount' => (string) $taxAmount,               // Must be string per API docs
                 'TotalAmount' => (string) $totalAmount,           // Must be string per API docs
             ];
+
+            // Log request data for debugging
+            \Log::info('Taiwan E-Invoice API Request', [
+                'invoice_number' => $invoice->number,
+                'itemsTotal' => $itemsTotal,
+                'sum' => $sum,
+                'salesAmount' => $salesAmount,
+                'taxAmount' => $taxAmount,
+                'totalAmount' => $totalAmount,
+                'productItems' => $productItems,
+                'isB2B' => $isB2B,
+            ]);
 
             // Call Amego API to issue invoice
             $response = $this->makeRequest('/json/f0401', $requestData);
