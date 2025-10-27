@@ -150,50 +150,52 @@ class TaiwanEInvoiceService
             // Prepare line items
             $productItems = [];
             $itemsTotal = 0;
+            $itemsTotalTaxInclusive = 0;
 
             foreach ($invoice->line_items as $item) {
                 $quantity = (float) $item->quantity;
                 $unitPrice = (int) round((float) $item->cost);
 
-                // Calculate amount - MUST equal Quantity * UnitPrice for API validation
-                $amount = (int) round($quantity * $unitPrice);
-                $itemsTotal += $amount;
+                // Calculate tax-exclusive amount
+                $lineTotal = $quantity * $unitPrice;
+                $amountExclusive = (int) round($lineTotal);
+                $itemsTotal += $amountExclusive;
+
+                // For B2B invoices, ProductItem.Amount must be TAX-INCLUSIVE
+                // API validates: Sum(ProductItem.Amount) ÷ 1.05 = SalesAmount
+                // For B2C, amounts are already tax-inclusive, no multiplication needed
+                $amountInclusive = (int) round($amountExclusive * 1.05);
+                $itemsTotalTaxInclusive += $amountInclusive;
+
+                // Format quantity without trailing zeros (6 not 6.0, but keep 2.5)
+                $quantityStr = rtrim(rtrim(number_format($quantity, 7, '.', ''), '0'), '.');
 
                 $productItems[] = [
                     'Description' => $item->product_key ?: $item->notes ?: '服務費',
-                    'Quantity' => (string) $quantity,      // String per API example
+                    'Quantity' => $quantityStr,
                     'Unit' => '式',
-                    'UnitPrice' => (string) $unitPrice,    // String per API example
-                    'Amount' => (string) $amount,          // String per API example
+                    'UnitPrice' => (string) $unitPrice,
+                    'Amount' => (string) $amountInclusive,  // Tax-inclusive for B2B
                     'Remark' => '',
-                    'TaxType' => '1',                      // String per API example
+                    'TaxType' => '1',
                 ];
             }
 
-            // Calculate total amount including tax
-            // Invoice Ninja may calculate tax at invoice level (uses_inclusive_taxes = false)
-            // or include it in line item costs (uses_inclusive_taxes = true)
-            if ($invoice->uses_inclusive_taxes) {
-                // Tax already included in line item costs
-                $sum = $itemsTotal;
-            } else {
-                // Tax calculated separately at invoice level - must add it
-                $sum = $itemsTotal + (int) round($invoice->total_taxes);
-            }
-
+            // Calculate totals based on B2B vs B2C
             if ($isB2B) {
-                // B2B (with GUI): SalesAmount = sum of ProductItems, TaxAmount calculated from rate
-                // IMPORTANT: SalesAmount MUST equal sum of ProductItem.Amount values for API validation
-                // Example: itemsTotal=44660 → TaxAmount=2233 → TotalAmount=46893
-                $salesAmount = $itemsTotal;
-                $taxAmount = $sum - $itemsTotal;
-                $totalAmount = $sum;
+                // B2B (with GUI): API validates Sum(ProductItem.Amount) ÷ 1.05 = SalesAmount
+                // ProductItem amounts are tax-inclusive (already multiplied by 1.05)
+                // SalesAmount is tax-exclusive
+                // Example: itemsTotalTaxInclusive=46893, itemsTotal=44660, tax=2233
+                $salesAmount = $itemsTotal;                        // Tax-exclusive: 44,660
+                $taxAmount = $itemsTotalTaxInclusive - $itemsTotal; // Tax: 2,233
+                $totalAmount = $itemsTotalTaxInclusive;            // Tax-inclusive: 46,893
             } else {
                 // B2C (no GUI): No tax separation
-                // Example: Sum=46893 → SalesAmount=46893, TaxAmount=0, TotalAmount=46893
-                $salesAmount = $sum;
+                // ProductItem amounts are tax-inclusive already
+                $salesAmount = $itemsTotalTaxInclusive;
                 $taxAmount = 0;
-                $totalAmount = $sum;
+                $totalAmount = $itemsTotalTaxInclusive;
             }
 
             // Build API request data
@@ -217,17 +219,17 @@ class TaiwanEInvoiceService
                 'TaxRate' => '0.05',                              // String per API example
                 'TaxAmount' => (string) $taxAmount,               // String per API example
                 'TotalAmount' => (string) $totalAmount,           // String per API example
-                'DetailVat' => $isB2B ? 0 : 1,                    // 0=tax-exclusive (B2B), 1=tax-inclusive (B2C)
             ];
 
             // Log request data for debugging
             \Log::info('Taiwan E-Invoice API Request', [
                 'invoice_number' => $invoice->number,
-                'itemsTotal' => $itemsTotal,
-                'sum' => $sum,
+                'itemsTotal_exclusive' => $itemsTotal,
+                'itemsTotal_inclusive' => $itemsTotalTaxInclusive,
                 'salesAmount' => $salesAmount,
                 'taxAmount' => $taxAmount,
                 'totalAmount' => $totalAmount,
+                'validation' => $itemsTotalTaxInclusive . ' ÷ 1.05 = ' . round($itemsTotalTaxInclusive / 1.05),
                 'productItems' => $productItems,
                 'isB2B' => $isB2B,
             ]);
