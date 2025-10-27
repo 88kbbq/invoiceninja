@@ -168,11 +168,11 @@ class TaiwanEInvoiceService
             }
 
             if ($isB2B) {
-                // B2B (with GUI): Extract tax from tax-inclusive amount
-                // Example: Sum=46893 → Round(46893/1.05)=44660 → TaxAmount=2233, SalesAmount=44660
-                $salesAmountBeforeTax = (int) round($sum / 1.05);
-                $taxAmount = $sum - $salesAmountBeforeTax;
-                $salesAmount = $salesAmountBeforeTax;
+                // B2B (with GUI): SalesAmount = sum of ProductItems, TaxAmount calculated from rate
+                // IMPORTANT: SalesAmount MUST equal sum of ProductItem.Amount values for API validation
+                // Example: itemsTotal=44660 → TaxAmount=2233 → TotalAmount=46893
+                $salesAmount = $itemsTotal;
+                $taxAmount = $sum - $itemsTotal;
                 $totalAmount = $sum;
             } else {
                 // B2C (no GUI): No tax separation
