@@ -161,13 +161,6 @@ class UpdateClientRequest extends Request
             $input['e_invoice'] = $this->client->filterNullsRecursive($input['e_invoice']);
         }
 
-        if (isset($input['public_notes']) && $this->hasHeader('X-REACT')) {
-            $input['public_notes'] = str_replace("\n", "", $input['public_notes']);
-        }
-        if (isset($input['private_notes']) && $this->hasHeader('X-REACT')) {
-            $input['private_notes'] = str_replace("\n", "", $input['private_notes']);
-        }
-
         $this->replace($input);
     }
 
