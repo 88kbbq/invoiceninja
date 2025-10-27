@@ -134,13 +134,12 @@ class TaiwanEInvoiceService
             $isB2B = !empty($buyerGui) && strlen($buyerGui) === 8;
 
             // Prepare line items
-            // IMPORTANT: ProductItem amounts are TAX-INCLUSIVE (as-is from invoice)
             $productItems = [];
             $itemsTotal = 0;
 
             foreach ($invoice->line_items as $item) {
                 $quantity = (float) $item->quantity;
-                $unitPrice = (int) round((float) $item->cost); // Tax-inclusive price from invoice
+                $unitPrice = (int) round((float) $item->cost);
 
                 // Calculate amount - MUST equal Quantity * UnitPrice for API validation
                 $amount = (int) round($quantity * $unitPrice);
@@ -157,20 +156,27 @@ class TaiwanEInvoiceService
                 ];
             }
 
-            // Calculate amounts based on B2C vs B2B
-            // Sum of all ProductItem amounts (tax-inclusive)
-            $sum = $itemsTotal;
+            // Calculate total amount including tax
+            // Invoice Ninja may calculate tax at invoice level (uses_inclusive_taxes = false)
+            // or include it in line item costs (uses_inclusive_taxes = true)
+            if ($invoice->uses_inclusive_taxes) {
+                // Tax already included in line item costs
+                $sum = $itemsTotal;
+            } else {
+                // Tax calculated separately at invoice level - must add it
+                $sum = $itemsTotal + (int) round($invoice->total_taxes);
+            }
 
             if ($isB2B) {
                 // B2B (with GUI): Extract tax from tax-inclusive amount
-                // Example: Sum=168 → Round(168/1.05)=160 → TaxAmount=168-160=8, SalesAmount=160
+                // Example: Sum=46893 → Round(46893/1.05)=44660 → TaxAmount=2233, SalesAmount=44660
                 $salesAmountBeforeTax = (int) round($sum / 1.05);
                 $taxAmount = $sum - $salesAmountBeforeTax;
                 $salesAmount = $salesAmountBeforeTax;
                 $totalAmount = $sum;
             } else {
                 // B2C (no GUI): No tax separation
-                // Example: Sum=168 → SalesAmount=168, TaxAmount=0, TotalAmount=168
+                // Example: Sum=46893 → SalesAmount=46893, TaxAmount=0, TotalAmount=46893
                 $salesAmount = $sum;
                 $taxAmount = 0;
                 $totalAmount = $sum;
