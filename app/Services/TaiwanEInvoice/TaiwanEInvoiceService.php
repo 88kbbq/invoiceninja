@@ -161,12 +161,12 @@ class TaiwanEInvoiceService
 
                 $productItems[] = [
                     'Description' => $item->product_key ?: $item->notes ?: '服務費',
-                    'Quantity' => $quantity,               // Number per API docs
+                    'Quantity' => (string) $quantity,      // String per API example
                     'Unit' => '式',
-                    'UnitPrice' => $unitPrice,             // Number per API docs
-                    'Amount' => $amount,                   // Number per API docs
+                    'UnitPrice' => (string) $unitPrice,    // String per API example
+                    'Amount' => (string) $amount,          // String per API example
                     'Remark' => '',
-                    'TaxType' => 1,                        // Number 1=應稅 per API docs
+                    'TaxType' => '1',                      // String per API example
                 ];
             }
 
@@ -210,13 +210,14 @@ class TaiwanEInvoiceService
                 'CarrierId2' => '',
                 'NPOBAN' => '', // No donation
                 'ProductItem' => $productItems,
-                'SalesAmount' => $salesAmount,                    // Number per API docs
-                'FreeTaxSalesAmount' => 0,                        // Number per API docs
-                'ZeroTaxSalesAmount' => 0,                        // Number per API docs
-                'TaxType' => 1,                                   // Number 1=應稅 per API docs
-                'TaxRate' => '0.05',                              // String per API docs (ONLY numeric field as string!)
-                'TaxAmount' => $taxAmount,                        // Number per API docs
-                'TotalAmount' => $totalAmount,                    // Number per API docs
+                'SalesAmount' => (string) $salesAmount,           // String per API example
+                'FreeTaxSalesAmount' => '0',                      // String per API example
+                'ZeroTaxSalesAmount' => '0',                      // String per API example
+                'TaxType' => '1',                                 // String per API example
+                'TaxRate' => '0.05',                              // String per API example
+                'TaxAmount' => (string) $taxAmount,               // String per API example
+                'TotalAmount' => (string) $totalAmount,           // String per API example
+                'DetailVat' => $isB2B ? 0 : 1,                    // 0=tax-exclusive (B2B), 1=tax-inclusive (B2C)
             ];
 
             // Log request data for debugging
