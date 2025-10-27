@@ -154,19 +154,23 @@ class TaiwanEInvoiceService
 
             foreach ($invoice->line_items as $item) {
                 $quantity = (float) $item->quantity;
-                $unitPriceExclusive = (int) round((float) $item->cost);
+                $unitPriceBase = (int) round((float) $item->cost);
 
-                // For B2B invoices, UnitPrice must be tax-inclusive
-                // API validates EACH item: Quantity × UnitPrice = Amount
-                // Then validates: Sum(Amount) ÷ 1.05 = SalesAmount
-                $unitPriceInclusive = (int) round($unitPriceExclusive * 1.05);
-
-                // Calculate amount - must equal Quantity × UnitPrice for API validation
-                $amount = (int) round($quantity * $unitPriceInclusive);
-
-                // Track totals
-                $itemsTotal += (int) round($quantity * $unitPriceExclusive);  // Tax-exclusive
-                $itemsTotalTaxInclusive += $amount;  // Tax-inclusive
+                // B2B vs B2C handling
+                if ($isB2B) {
+                    // B2B: UnitPrice must be tax-inclusive
+                    // API validates: Quantity × UnitPrice = Amount, then Sum(Amount) ÷ 1.05 = SalesAmount
+                    $unitPrice = (int) round($unitPriceBase * 1.05);
+                    $amount = (int) round($quantity * $unitPrice);
+                    $itemsTotal += (int) round($quantity * $unitPriceBase);  // Tax-exclusive
+                    $itemsTotalTaxInclusive += $amount;
+                } else {
+                    // B2C: No tax multiplication needed, amounts are already correct
+                    $unitPrice = $unitPriceBase;
+                    $amount = (int) round($quantity * $unitPrice);
+                    $itemsTotal += $amount;
+                    $itemsTotalTaxInclusive += $amount;
+                }
 
                 // Format quantity without trailing zeros (6 not 6.0, but keep 2.5)
                 $quantityStr = rtrim(rtrim(number_format($quantity, 7, '.', ''), '0'), '.');
@@ -175,7 +179,7 @@ class TaiwanEInvoiceService
                     'Description' => $item->product_key ?: $item->notes ?: '服務費',
                     'Quantity' => $quantityStr,
                     'Unit' => '式',
-                    'UnitPrice' => (string) $unitPriceInclusive,  // Tax-inclusive for B2B
+                    'UnitPrice' => (string) $unitPrice,
                     'Amount' => (string) $amount,
                     'Remark' => '',
                     'TaxType' => '1',
