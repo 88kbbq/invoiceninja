@@ -223,7 +223,7 @@ class TaiwanEInvoiceService
             $requestData = [
                 'OrderId' => 'INV-' . $invoice->number,
                 'BuyerIdentifier' => $isB2B ? $buyerGui : '0000000000',
-                'BuyerName' => $isB2B ? $client->name : '客人',
+                'BuyerName' => $isB2B ? $buyerGui : '客人',
                 'BuyerAddress' => $client->address1 ?? '',
                 'BuyerTelephoneNumber' => '', // Do not pass phone (SMS fees)
                 'BuyerEmailAddress' => $buyerEmailAddress,
