@@ -116,7 +116,7 @@ XML;
         return [
             'type' => 'INVOICE',
             'number' => $invoice->number,
-            'date' => $this->formatDate($invoice->date),
+            'date' => $this->formatDate($invoice->due_date),
             'due_date' => $this->shouldInclude($include, 'due_date') ? $this->formatDate($invoice->due_date) : null,
             'event_time' => $this->shouldInclude($include, 'event_time') ? $invoice->custom_value1 : null,
             'event_date' => $this->shouldInclude($include, 'event_date') ? $invoice->custom_value2 : null,
@@ -139,7 +139,7 @@ XML;
         return [
             'type' => 'QUOTE',
             'number' => $quote->number,
-            'date' => $this->formatDate($quote->date),
+            'date' => $this->formatDate($quote->due_date),
             'due_date' => $this->shouldInclude($include, 'due_date') ? $this->formatDate($quote->due_date) : null,
             'event_time' => $this->shouldInclude($include, 'event_time') ? $quote->custom_value1 : null,
             'event_date' => $this->shouldInclude($include, 'event_date') ? $quote->custom_value2 : null,
