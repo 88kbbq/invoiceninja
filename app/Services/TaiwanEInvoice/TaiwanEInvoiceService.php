@@ -56,6 +56,13 @@ class TaiwanEInvoiceService
         $dataJson = json_encode($data, JSON_UNESCAPED_UNICODE);
         $signature = $this->generateSignature($data, $timestamp);
 
+        // Log exact JSON being sent to API
+        \Log::info('Taiwan E-Invoice JSON payload', [
+            'endpoint' => $endpoint,
+            'json' => $dataJson,
+            'json_length' => strlen($dataJson),
+        ]);
+
         // Prepare POST data per API documentation
         // Content-Type: application/x-www-form-urlencoded
         // Note: Http::asForm() automatically URL-encodes parameters (like http_build_query)
