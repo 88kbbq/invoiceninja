@@ -154,18 +154,19 @@ class TaiwanEInvoiceService
 
             foreach ($invoice->line_items as $item) {
                 $quantity = (float) $item->quantity;
-                $unitPrice = (int) round((float) $item->cost);
+                $unitPriceExclusive = (int) round((float) $item->cost);
 
-                // Calculate tax-exclusive amount
-                $lineTotal = $quantity * $unitPrice;
-                $amountExclusive = (int) round($lineTotal);
-                $itemsTotal += $amountExclusive;
+                // For B2B invoices, UnitPrice must be tax-inclusive
+                // API validates EACH item: Quantity × UnitPrice = Amount
+                // Then validates: Sum(Amount) ÷ 1.05 = SalesAmount
+                $unitPriceInclusive = (int) round($unitPriceExclusive * 1.05);
 
-                // For B2B invoices, ProductItem.Amount must be TAX-INCLUSIVE
-                // API validates: Sum(ProductItem.Amount) ÷ 1.05 = SalesAmount
-                // For B2C, amounts are already tax-inclusive, no multiplication needed
-                $amountInclusive = (int) round($amountExclusive * 1.05);
-                $itemsTotalTaxInclusive += $amountInclusive;
+                // Calculate amount - must equal Quantity × UnitPrice for API validation
+                $amount = (int) round($quantity * $unitPriceInclusive);
+
+                // Track totals
+                $itemsTotal += (int) round($quantity * $unitPriceExclusive);  // Tax-exclusive
+                $itemsTotalTaxInclusive += $amount;  // Tax-inclusive
 
                 // Format quantity without trailing zeros (6 not 6.0, but keep 2.5)
                 $quantityStr = rtrim(rtrim(number_format($quantity, 7, '.', ''), '0'), '.');
@@ -174,8 +175,8 @@ class TaiwanEInvoiceService
                     'Description' => $item->product_key ?: $item->notes ?: '服務費',
                     'Quantity' => $quantityStr,
                     'Unit' => '式',
-                    'UnitPrice' => (string) $unitPrice,
-                    'Amount' => (string) $amountInclusive,  // Tax-inclusive for B2B
+                    'UnitPrice' => (string) $unitPriceInclusive,  // Tax-inclusive for B2B
+                    'Amount' => (string) $amount,
                     'Remark' => '',
                     'TaxType' => '1',
                 ];
