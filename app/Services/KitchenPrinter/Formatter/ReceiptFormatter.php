@@ -207,12 +207,14 @@ XML;
         $commands[] = '<lineFeed/>';
 
         if (!empty($data['public_notes'])) {
-            $commands[] = '<text>' . $this->escapeXml($data['public_notes']) . '</text>';
+            $plainNotes = $this->stripHtmlFromNotes($data['public_notes']);
+            $commands[] = '<text>' . $this->escapeXml($plainNotes) . '</text>';
             $commands[] = '<lineFeed/>';
         }
 
         if (!empty($data['private_notes'])) {
-            $commands[] = '<text emphasis="true">' . $this->escapeXml($data['private_notes']) . '</text>';
+            $plainNotes = $this->stripHtmlFromNotes($data['private_notes']);
+            $commands[] = '<text emphasis="true">' . $this->escapeXml($plainNotes) . '</text>';
             $commands[] = '<lineFeed/>';
         }
 
@@ -316,13 +318,15 @@ XML;
         // Notes - 1x font
         if (!empty($data['public_notes'])) {
             $output .= $font1x;
-            $wrapped = $this->wordWrap($data['public_notes'], 44);
+            $plainNotes = $this->stripHtmlFromNotes($data['public_notes']);
+            $wrapped = $this->wordWrap($plainNotes, 44);
             $output .= $this->toBig5($wrapped);
         }
 
         if (!empty($data['private_notes'])) {
             $output .= chr(27) . chr(69); // Emphasis on (Star Line Mode)
-            $wrapped = $this->wordWrap($data['private_notes'], 44);
+            $plainNotes = $this->stripHtmlFromNotes($data['private_notes']);
+            $wrapped = $this->wordWrap($plainNotes, 44);
             $output .= $this->toBig5($wrapped);
             $output .= chr(27) . chr(70); // Emphasis off (Star Line Mode)
         }
@@ -534,5 +538,38 @@ XML;
         }
 
         return $result;
+    }
+
+    /**
+     * Strip HTML tags from notes and convert to plain text.
+     * Converts <br> and </p> tags to newlines, then strips all other HTML.
+     */
+    protected function stripHtmlFromNotes(?string $html): string
+    {
+        if (empty($html)) {
+            return '';
+        }
+
+        // Convert <br> and <br/> tags to newlines
+        $text = preg_replace('/<br\s*\/?>/', "\n", $html);
+
+        // Convert </p> tags to newlines (paragraph breaks)
+        $text = str_replace('</p>', "\n", $text);
+
+        // Strip all remaining HTML tags
+        $text = strip_tags($text);
+
+        // Decode HTML entities (e.g., &nbsp;, &amp;)
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        // Remove excessive newlines (max 2 consecutive)
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        // Trim whitespace from each line
+        $lines = explode("\n", $text);
+        $lines = array_map('trim', $lines);
+        $text = implode("\n", $lines);
+
+        return trim($text);
     }
 }
