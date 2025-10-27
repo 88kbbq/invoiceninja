@@ -154,12 +154,12 @@ class TaiwanEInvoiceService
 
                 $productItems[] = [
                     'Description' => $item->product_key ?: $item->notes ?: '服務費',
-                    'Quantity' => (string) $quantity,      // Must be string per API docs
+                    'Quantity' => $quantity,               // Number per API docs
                     'Unit' => '式',
-                    'UnitPrice' => (string) $unitPrice,    // Must be string per API docs
-                    'Amount' => (string) $amount,          // Must be string per API docs
+                    'UnitPrice' => $unitPrice,             // Number per API docs
+                    'Amount' => $amount,                   // Number per API docs
                     'Remark' => '',
-                    'TaxType' => '1', // 應稅 (must be string per API docs)
+                    'TaxType' => 1,                        // Number 1=應稅 per API docs
                 ];
             }
 
@@ -203,13 +203,13 @@ class TaiwanEInvoiceService
                 'CarrierId2' => '',
                 'NPOBAN' => '', // No donation
                 'ProductItem' => $productItems,
-                'SalesAmount' => (string) $salesAmount,           // Must be string per API docs
-                'FreeTaxSalesAmount' => '0',                      // Must be string per API docs
-                'ZeroTaxSalesAmount' => '0',                      // Must be string per API docs
-                'TaxType' => '1',
-                'TaxRate' => '0.05',
-                'TaxAmount' => (string) $taxAmount,               // Must be string per API docs
-                'TotalAmount' => (string) $totalAmount,           // Must be string per API docs
+                'SalesAmount' => $salesAmount,                    // Number per API docs
+                'FreeTaxSalesAmount' => 0,                        // Number per API docs
+                'ZeroTaxSalesAmount' => 0,                        // Number per API docs
+                'TaxType' => 1,                                   // Number 1=應稅 per API docs
+                'TaxRate' => '0.05',                              // String per API docs (ONLY numeric field as string!)
+                'TaxAmount' => $taxAmount,                        // Number per API docs
+                'TotalAmount' => $totalAmount,                    // Number per API docs
             ];
 
             // Log request data for debugging
