@@ -413,7 +413,9 @@ class TapPayPaymentDriver extends BaseDriver
                 'full_response' => $data,
             ]);
 
-            if ($data->status === 0 && isset($data->trade_records) && count($data->trade_records) > 0) {
+            // TapPay returns status: 2 with msg: "End of list" for successful queries
+            // Status: 0 = API success, Status: 2 = Query complete with results
+            if (isset($data->trade_records) && count($data->trade_records) > 0) {
                 $transaction = $data->trade_records[0];
 
                 \Log::info('TapPay transaction record details', [
@@ -471,15 +473,15 @@ class TapPayPaymentDriver extends BaseDriver
                 return $this->processUnsuccessfulTransaction($transaction);
             }
 
-            // Query failed
-            \Log::error('TapPay transaction query failed', [
+            // No transaction records found
+            \Log::error('TapPay transaction query returned no records', [
                 'rec_trade_id' => $rec_trade_id,
                 'status' => $data->status ?? null,
                 'msg' => $data->msg ?? null,
                 'response' => $data,
             ]);
 
-            throw new PaymentFailed($data->msg ?? 'Failed to query transaction status', $data->status ?? 500);
+            throw new PaymentFailed('No transaction records found for rec_trade_id: ' . $rec_trade_id, 404);
 
         } catch (GuzzleException $e) {
             $this->unWindGatewayFees($this->payment_hash);
