@@ -363,6 +363,15 @@ class TapPayPaymentDriver extends BaseDriver
         $rec_trade_id = $request->input('rec_trade_id');
         $status = $request->input('status');
 
+        // Log ALL incoming callback parameters
+        \Log::info('TapPay 3DS callback received', [
+            'rec_trade_id' => $rec_trade_id,
+            'status' => $status,
+            'all_params' => $request->all(),
+            'payment_hash' => $this->payment_hash->hash ?? null,
+            'client_id' => $this->client->id ?? null,
+        ]);
+
         if (!$rec_trade_id) {
             SystemLogger::dispatch(
                 ['error' => 'Missing rec_trade_id in 3DS callback', 'request' => $request->all()],
@@ -378,19 +387,42 @@ class TapPayPaymentDriver extends BaseDriver
 
         try {
             // Query transaction record to get final status
-            $response = $this->gateway->post('tpc/transaction/query', [
-                'json' => [
-                    'partner_key' => $this->company_gateway->getConfigField('partnerKey'),
-                    'filters' => [
-                        'rec_trade_id' => $rec_trade_id,
-                    ],
+            $queryPayload = [
+                'partner_key' => $this->company_gateway->getConfigField('partnerKey'),
+                'filters' => [
+                    'rec_trade_id' => $rec_trade_id,
                 ],
+            ];
+
+            \Log::info('TapPay transaction query request', [
+                'rec_trade_id' => $rec_trade_id,
+                'payload' => $queryPayload,
+            ]);
+
+            $response = $this->gateway->post('tpc/transaction/query', [
+                'json' => $queryPayload,
             ]);
 
             $data = json_decode($response->getBody()->getContents());
 
+            \Log::info('TapPay transaction query response', [
+                'rec_trade_id' => $rec_trade_id,
+                'status' => $data->status ?? null,
+                'msg' => $data->msg ?? null,
+                'trade_records_count' => isset($data->trade_records) ? count($data->trade_records) : 0,
+                'full_response' => $data,
+            ]);
+
             if ($data->status === 0 && isset($data->trade_records) && count($data->trade_records) > 0) {
                 $transaction = $data->trade_records[0];
+
+                \Log::info('TapPay transaction record details', [
+                    'rec_trade_id' => $rec_trade_id,
+                    'record_status' => $transaction->record_status ?? null,
+                    'transaction_method' => $transaction->transaction_method_details->transaction_method ?? null,
+                    'amount' => $transaction->amount ?? null,
+                    'full_transaction' => $transaction,
+                ]);
 
                 // Check if payment was successful
                 if ($transaction->record_status === 0) {
@@ -419,6 +451,12 @@ class TapPayPaymentDriver extends BaseDriver
                 }
 
                 // Payment failed
+                \Log::error('TapPay 3DS payment failed', [
+                    'rec_trade_id' => $rec_trade_id,
+                    'record_status' => $transaction->record_status ?? null,
+                    'transaction' => $transaction,
+                ]);
+
                 $this->unWindGatewayFees($this->payment_hash);
 
                 SystemLogger::dispatch(
@@ -434,6 +472,13 @@ class TapPayPaymentDriver extends BaseDriver
             }
 
             // Query failed
+            \Log::error('TapPay transaction query failed', [
+                'rec_trade_id' => $rec_trade_id,
+                'status' => $data->status ?? null,
+                'msg' => $data->msg ?? null,
+                'response' => $data,
+            ]);
+
             throw new PaymentFailed($data->msg ?? 'Failed to query transaction status', $data->status ?? 500);
 
         } catch (GuzzleException $e) {
