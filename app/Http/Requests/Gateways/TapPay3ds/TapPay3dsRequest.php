@@ -6,6 +6,7 @@ use App\Libraries\MultiDB;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\CompanyGateway;
+use App\Models\Invoice;
 use App\Models\PaymentHash;
 use App\Utils\Traits\MakesHash;
 use Illuminate\Foundation\Http\FormRequest;
@@ -61,6 +62,24 @@ class TapPay3dsRequest extends FormRequest
     {
         MultiDB::findAndSetDbByCompanyKey($this->company_key);
 
-        return Client::withTrashed()->find($this->getPaymentHash()->data->client_id);
+        $payment_hash = $this->getPaymentHash();
+
+        // Get client from the first invoice in the payment hash
+        if (isset($payment_hash->data->invoices[0]->invoice_id)) {
+            $invoice_id = $this->decodePrimaryKey($payment_hash->data->invoices[0]->invoice_id);
+            $invoice = Invoice::withTrashed()->find($invoice_id);
+
+            if ($invoice) {
+                return $invoice->client;
+            }
+        }
+
+        // Fallback: try to get client_id directly from data if it exists
+        if (isset($payment_hash->data->client_id)) {
+            return Client::withTrashed()->find($payment_hash->data->client_id);
+        }
+
+        // Last resort: return null and let the controller handle it
+        return null;
     }
 }
