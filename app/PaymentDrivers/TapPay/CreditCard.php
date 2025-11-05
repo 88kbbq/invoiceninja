@@ -531,14 +531,44 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
         $payment_meta->last4 = (string) $data->card_info->last_four;
         $payment_meta->type = (int) GatewayType::CREDIT_CARD;
         $payment_meta->card_token = (string) $data->card_secret->card_token;
+        $payment_meta->card_identifier = (string) $data->card_identifier; // TapPay's unique card identifier
 
-        $token_data = [
-            'payment_meta' => $payment_meta,
-            'token' => $data->card_secret->card_key,
-            'payment_method_id' => GatewayType::CREDIT_CARD,
-        ];
+        // Check if this card already exists for this client
+        // card_identifier is TapPay's unique identifier for a physical card
+        $existingToken = \App\Models\ClientGatewayToken::where('company_id', $this->tappay->client->company_id)
+            ->where('client_id', $this->tappay->client->id)
+            ->where('company_gateway_id', $this->tappay->company_gateway->id)
+            ->whereRaw('JSON_EXTRACT(meta, "$.card_identifier") = ?', [$data->card_identifier])
+            ->first();
 
-        $this->tappay->storeGatewayToken($token_data);
+        if ($existingToken) {
+            // Card already exists - update the token and metadata
+            \Log::info('TapPay updating existing card token', [
+                'client_id' => $this->tappay->client->id,
+                'card_identifier' => $data->card_identifier,
+                'last4' => $data->card_info->last_four,
+                'existing_token_id' => $existingToken->id,
+            ]);
+
+            $existingToken->token = $data->card_secret->card_key;
+            $existingToken->meta = $payment_meta;
+            $existingToken->save();
+        } else {
+            // New card - create new token
+            \Log::info('TapPay saving new card token', [
+                'client_id' => $this->tappay->client->id,
+                'card_identifier' => $data->card_identifier,
+                'last4' => $data->card_info->last_four,
+            ]);
+
+            $token_data = [
+                'payment_meta' => $payment_meta,
+                'token' => $data->card_secret->card_key,
+                'payment_method_id' => GatewayType::CREDIT_CARD,
+            ];
+
+            $this->tappay->storeGatewayToken($token_data);
+        }
     }
 
     /**
