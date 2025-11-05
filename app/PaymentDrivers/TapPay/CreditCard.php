@@ -306,6 +306,33 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
             ]);
 
             if ($data->status === 0) {
+                // Check if 3D Secure verification is required
+                if (isset($data->payment_url) && !empty($data->payment_url)) {
+                    // 3DS required - redirect customer to complete verification
+                    \Log::info('TapPay 3DS redirect required (token payment)', [
+                        'rec_trade_id' => $data->rec_trade_id ?? null,
+                        'payment_url' => $data->payment_url,
+                        'transaction_method' => $data->transaction_method_details->transaction_method ?? null,
+                        'client_id' => $this->tappay->client->id,
+                        'payment_hash' => $this->tappay->payment_hash->hash ?? null,
+                        'gateway_token_id' => $cgt->id,
+                    ]);
+
+                    // Redirect to 3DS verification page
+                    // TapPay will redirect back to result_url after completion
+                    // Then process3dsConfirmation() will handle final payment creation
+                    return redirect($data->payment_url);
+                }
+
+                // No 3DS required (frictionless transaction)
+                // Safe to complete payment immediately
+                \Log::info('TapPay frictionless payment (no 3DS, token payment)', [
+                    'rec_trade_id' => $data->rec_trade_id ?? null,
+                    'transaction_method' => $data->transaction_method_details->transaction_method ?? 'FRICTIONLESS',
+                    'client_id' => $this->tappay->client->id,
+                    'gateway_token_id' => $cgt->id,
+                ]);
+
                 return $this->processSuccessfulPayment($data, $amount);
             }
 
@@ -416,6 +443,36 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
             ]);
 
             if ($data->status === 0) {
+                // Check if 3D Secure verification is required
+                if (isset($data->payment_url) && !empty($data->payment_url)) {
+                    // 3DS required - redirect customer to complete verification
+                    \Log::info('TapPay 3DS redirect required', [
+                        'rec_trade_id' => $data->rec_trade_id ?? null,
+                        'payment_url' => $data->payment_url,
+                        'transaction_method' => $data->transaction_method_details->transaction_method ?? null,
+                        'client_id' => $this->tappay->client->id,
+                        'payment_hash' => $this->tappay->payment_hash->hash ?? null,
+                    ]);
+
+                    // Save card token if requested (before redirect)
+                    if ($store_card && isset($data->card_secret)) {
+                        $this->saveCardToken($data);
+                    }
+
+                    // Redirect to 3DS verification page
+                    // TapPay will redirect back to result_url after completion
+                    // Then process3dsConfirmation() will handle final payment creation
+                    return redirect($data->payment_url);
+                }
+
+                // No 3DS required (frictionless transaction)
+                // Safe to complete payment immediately
+                \Log::info('TapPay frictionless payment (no 3DS)', [
+                    'rec_trade_id' => $data->rec_trade_id ?? null,
+                    'transaction_method' => $data->transaction_method_details->transaction_method ?? 'FRICTIONLESS',
+                    'client_id' => $this->tappay->client->id,
+                ]);
+
                 // Save card if requested and token was returned
                 if ($store_card && isset($data->card_secret)) {
                     $this->saveCardToken($data);
