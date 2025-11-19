@@ -272,6 +272,8 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
                     'phone_number' => $this->tappay->client->phone ?? '',
                     'name' => $this->tappay->client->present()->name(),
                     'email' => $this->tappay->client->present()->email(),
+                    'zip_code' => $this->tappay->client->postal_code ?? '',
+                    'address' => $this->tappay->client->address1 ?? '',
                 ],
             ];
 
@@ -407,6 +409,8 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
                     'phone_number' => $this->tappay->client->phone ?? '',
                     'name' => $cardholder_name,
                     'email' => $this->tappay->client->present()->email(),
+                    'zip_code' => $this->tappay->client->postal_code ?? '',
+                    'address' => $this->tappay->client->address1 ?? '',
                 ],
                 'remember' => $store_card,
                 'three_domain_secure' => true,

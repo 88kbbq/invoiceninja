@@ -21,7 +21,7 @@
     <meta name="currency" content="{{ $currency }}">
     <meta name="payment-hash" content="{{ $payment_hash }}">
 
-    <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.19.2"></script>
+    <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.24.0"></script>
 
 @endsection
 

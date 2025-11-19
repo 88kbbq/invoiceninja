@@ -14,7 +14,7 @@
                 <meta name="app-key" content="{{ $app_key }}">
                 <meta name="server-type" content="{{ $server_type }}">
 
-                <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.19.2"></script>
+                <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.24.0"></script>
 
                 <form action="{{ route('client.payment_methods.store', ['method' => App\Models\GatewayType::CREDIT_CARD]) }}" method="post" id="authorize-form">
                     @csrf

@@ -121,7 +121,7 @@ class TapPayCreditCardPayment {
 
     ensureSdkScript() {
         const container = document.getElementById('tappay-credit-card-payment');
-        const defaultSrc = 'https://js.tappaysdk.com/sdk/tpdirect/v5.19.2';
+        const defaultSrc = 'https://js.tappaysdk.com/sdk/tpdirect/v5.24.0';
         const sdkSrc = container?.dataset.sdkSrc || defaultSrc;
 
         let script = document.querySelector(`script[src="${sdkSrc}"]`);
