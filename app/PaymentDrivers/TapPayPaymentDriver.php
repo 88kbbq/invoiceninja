@@ -470,7 +470,13 @@ class TapPayPaymentDriver extends BaseDriver
                     $this->client->company,
                 );
 
-                return $this->processUnsuccessfulTransaction($transaction);
+                // Convert stdClass to array for processUnsuccessfulTransaction
+                $error_data = [
+                    'error' => $transaction->bank_result_msg ?? 'Payment failed',
+                    'error_code' => $transaction->bank_result_code ?? 'UNKNOWN',
+                ];
+
+                return $this->processUnsuccessfulTransaction($error_data);
             }
 
             // No transaction records found

@@ -259,6 +259,21 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
         $amount = $request->input('value') ?? $this->tappay->payment_hash->data->value ?? 0;
 
         try {
+            // Build cardholder data - only include fields that have values
+            $cardholder = [
+                'phone_number' => $this->tappay->client->phone ?? '',
+                'name' => $this->tappay->client->present()->name(),
+                'email' => $this->tappay->client->present()->email(),
+            ];
+
+            // Only add optional fields if they have non-empty values
+            if (!empty($this->tappay->client->postal_code)) {
+                $cardholder['zip_code'] = $this->tappay->client->postal_code;
+            }
+            if (!empty($this->tappay->client->address1)) {
+                $cardholder['address'] = $this->tappay->client->address1;
+            }
+
             // Build request body
             $requestBody = [
                 'partner_key' => $this->tappay->getPartnerKey(),
@@ -268,13 +283,7 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
                 'amount' => (int) $amount,
                 'currency' => $this->tappay->client->getCurrencyCode(),
                 'details' => $this->tappay->getTapPayDescription(),
-                'cardholder' => [
-                    'phone_number' => $this->tappay->client->phone ?? '',
-                    'name' => $this->tappay->client->present()->name(),
-                    'email' => $this->tappay->client->present()->email(),
-                    'zip_code' => $this->tappay->client->postal_code ?? '',
-                    'address' => $this->tappay->client->address1 ?? '',
-                ],
+                'cardholder' => $cardholder,
             ];
 
             // LOG REQUEST - For TapPay Support
@@ -397,6 +406,21 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
         ]);
 
         try {
+            // Build cardholder data - only include fields that have values
+            $cardholder = [
+                'phone_number' => $this->tappay->client->phone ?? '',
+                'name' => $cardholder_name,
+                'email' => $this->tappay->client->present()->email(),
+            ];
+
+            // Only add optional fields if they have non-empty values
+            if (!empty($this->tappay->client->postal_code)) {
+                $cardholder['zip_code'] = $this->tappay->client->postal_code;
+            }
+            if (!empty($this->tappay->client->address1)) {
+                $cardholder['address'] = $this->tappay->client->address1;
+            }
+
             // Build request body
             $requestBody = [
                 'prime' => $prime,
@@ -405,13 +429,7 @@ class CreditCard implements MethodInterface, LivewireMethodInterface
                 'amount' => (int) $amount,
                 'currency' => $this->tappay->client->getCurrencyCode(),
                 'details' => $this->tappay->getTapPayDescription(),
-                'cardholder' => [
-                    'phone_number' => $this->tappay->client->phone ?? '',
-                    'name' => $cardholder_name,
-                    'email' => $this->tappay->client->present()->email(),
-                    'zip_code' => $this->tappay->client->postal_code ?? '',
-                    'address' => $this->tappay->client->address1 ?? '',
-                ],
+                'cardholder' => $cardholder,
                 'remember' => $store_card,
                 'three_domain_secure' => true,
                 'result_url' => $this->tappay->getResultUrl(),
