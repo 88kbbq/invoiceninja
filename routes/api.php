@@ -319,6 +319,7 @@ Route::group(['middleware' => ['throttle:api', 'token_auth', 'valid_json','local
     // Taiwan E-Invoice Receipt Routes
     Route::post('payments/{payment}/taiwan_receipt', [TaiwanReceiptController::class, 'issue'])->name('payments.taiwan_receipt.issue');
     Route::delete('payments/{payment}/taiwan_receipt', [TaiwanReceiptController::class, 'void'])->name('payments.taiwan_receipt.void');
+    Route::get('payments/{payment}/taiwan_receipt/payment_type', [TaiwanReceiptController::class, 'getPaymentType'])->name('payments.taiwan_receipt.payment_type');
 
     Route::resource('payment_terms', PaymentTermController::class); // name = (payments. index / create / show / update / destroy / edit
     Route::post('payment_terms/bulk', [PaymentTermController::class, 'bulk'])->name('payment_terms.bulk');

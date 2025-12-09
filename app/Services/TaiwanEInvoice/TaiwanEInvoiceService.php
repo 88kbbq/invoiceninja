@@ -12,28 +12,89 @@ use Exception;
  *
  * API Documentation: /private/tmp/amego-api.txt
  * API URL: https://invoice-api.amego.tw
+ *
+ * Supports multiple issuing companies:
+ * - benfire: 犇火燻寶有限公司 (GUI: 53523822) - Default, used for TapPay payments
+ * - bameixin: 霸美燻王有限公司 (GUI: 83464574) - Available for manual payments
  */
 class TaiwanEInvoiceService
 {
     protected string $apiUrl;
     protected string $appKey;
     protected string $companyGui;
+    protected string $companyCode;
     protected bool $testMode;
 
-    public function __construct()
+    /**
+     * Company configurations
+     * Each company has its own GUI and App Key for Amego API
+     */
+    protected const COMPANIES = [
+        'benfire' => [
+            'name' => '犇火燻寶有限公司',
+            'gui_env' => 'TAIWAN_EINVOICE_BENFIRE_GUI',
+            'key_env' => 'TAIWAN_EINVOICE_BENFIRE_APP_KEY',
+            'gui_default' => '53523822',
+        ],
+        'bameixin' => [
+            'name' => '霸美燻王有限公司',
+            'gui_env' => 'TAIWAN_EINVOICE_BAMEIXIN_GUI',
+            'key_env' => 'TAIWAN_EINVOICE_BAMEIXIN_APP_KEY',
+            'gui_default' => '83464574',
+        ],
+    ];
+
+    /**
+     * @param string $companyCode Company identifier: 'benfire' or 'bameixin'
+     */
+    public function __construct(string $companyCode = 'benfire')
     {
         $this->apiUrl = 'https://invoice-api.amego.tw';
         $this->testMode = config('app.env') !== 'production' || env('TAIWAN_EINVOICE_TEST_MODE', true);
+        $this->companyCode = $companyCode;
 
         if ($this->testMode) {
             // Test credentials from Amego documentation
             $this->companyGui = '12345678';
             $this->appKey = 'sHeq7t8G1wiQvhAuIM27';
         } else {
-            // Production credentials from environment
-            $this->companyGui = env('TAIWAN_COMPANY_GUI', '83464574');
-            $this->appKey = env('TAIWAN_EINVOICE_APP_KEY', '');
+            // Production credentials from environment based on company
+            $this->setCompanyCredentials($companyCode);
         }
+    }
+
+    /**
+     * Set credentials based on company code
+     */
+    protected function setCompanyCredentials(string $companyCode): void
+    {
+        if (!isset(self::COMPANIES[$companyCode])) {
+            throw new Exception("Invalid company code: {$companyCode}. Must be 'benfire' or 'bameixin'.");
+        }
+
+        $company = self::COMPANIES[$companyCode];
+        $this->companyGui = env($company['gui_env'], $company['gui_default']);
+        $this->appKey = env($company['key_env'], '');
+
+        if (empty($this->appKey)) {
+            throw new Exception("Missing API key for company: {$company['name']}. Set {$company['key_env']} in .env");
+        }
+    }
+
+    /**
+     * Get company code
+     */
+    public function getCompanyCode(): string
+    {
+        return $this->companyCode;
+    }
+
+    /**
+     * Get company name
+     */
+    public function getCompanyName(): string
+    {
+        return self::COMPANIES[$this->companyCode]['name'] ?? 'Unknown';
     }
 
     /**
@@ -270,7 +331,14 @@ class TaiwanEInvoiceService
             $payment->custom_value1 = $receiptNumber;
             $payment->custom_value2 = now()->format('Y-m-d H:i:s');
             $payment->custom_value3 = 'issued';
+            $payment->custom_value4 = $this->companyCode; // Store issuing company for voiding
             $payment->save();
+
+            \Log::info('Taiwan E-Invoice issued successfully', [
+                'receipt_number' => $receiptNumber,
+                'company_code' => $this->companyCode,
+                'company_name' => $this->getCompanyName(),
+            ]);
 
             // Save GUI number to invoice.custom_value2 for future reference
             // (only if B2B invoice with valid 8-digit GUI)
@@ -320,10 +388,17 @@ class TaiwanEInvoiceService
             // Call Amego API to void invoice
             $this->makeRequest('/json/f0501', $requestData);
 
-            // Clear payment receipt data
+            \Log::info('Taiwan E-Invoice voided successfully', [
+                'receipt_number' => $receiptNumber,
+                'company_code' => $this->companyCode,
+                'company_name' => $this->getCompanyName(),
+            ]);
+
+            // Clear payment receipt data (but keep custom_value4 for audit trail)
             $payment->custom_value1 = '';
             $payment->custom_value2 = '';
-            $payment->custom_value3 = '';
+            $payment->custom_value3 = 'voided';
+            // custom_value4 keeps the company code for audit purposes
             $payment->save();
 
             return [

@@ -11,14 +11,44 @@ use Illuminate\Http\Request;
  * Taiwan E-Invoice Receipt Controller
  *
  * Handles issuing and voiding Taiwan government e-invoices via Amego API
+ *
+ * Supports multiple issuing companies:
+ * - benfire: 犇火燻寶有限公司 - Used for TapPay (credit card) payments
+ * - bameixin: 霸美燻王有限公司 - Available for manual payments only
  */
 class TaiwanReceiptController extends BaseController
 {
-    protected TaiwanEInvoiceService $service;
-
-    public function __construct()
+    /**
+     * Determine if payment is a TapPay (credit card) transaction
+     * TapPay transactions have a transaction_reference that is NOT 'Manual entry'
+     */
+    protected function isTapPayPayment(Payment $payment): bool
     {
-        $this->service = new TaiwanEInvoiceService();
+        $txnRef = $payment->transaction_reference ?? '';
+        return !empty($txnRef) && $txnRef !== 'Manual entry';
+    }
+
+    /**
+     * Determine which company should issue the e-invoice
+     *
+     * Rules:
+     * - TapPay payments: MUST use 'benfire' (犇火燻寶有限公司)
+     * - Manual payments: User can choose, defaults to 'benfire'
+     */
+    protected function determineIssuingCompany(Payment $payment, ?string $requestedCompany): string
+    {
+        // TapPay payments always use benfire
+        if ($this->isTapPayPayment($payment)) {
+            return 'benfire';
+        }
+
+        // Manual payments can use requested company, default to benfire
+        $validCompanies = ['benfire', 'bameixin'];
+        if ($requestedCompany && in_array($requestedCompany, $validCompanies)) {
+            return $requestedCompany;
+        }
+
+        return 'benfire';
     }
 
     /**
@@ -35,9 +65,16 @@ class TaiwanReceiptController extends BaseController
         // Get optional parameters from request
         $einvoiceEmail = $request->input('einvoice_email');
         $buyerGui = $request->input('buyer_gui'); // VAT/GUI number (統一編號)
+        $requestedCompany = $request->input('issuing_company'); // 'benfire' or 'bameixin'
+
+        // Determine which company issues this e-invoice
+        $companyCode = $this->determineIssuingCompany($payment, $requestedCompany);
+
+        // Create service with appropriate company credentials
+        $service = new TaiwanEInvoiceService($companyCode);
 
         // Call service to issue receipt
-        $result = $this->service->issueReceipt($payment, $einvoiceEmail, $buyerGui);
+        $result = $service->issueReceipt($payment, $einvoiceEmail, $buyerGui);
 
         // Return appropriate response
         if ($result['success']) {
@@ -45,6 +82,8 @@ class TaiwanReceiptController extends BaseController
                 'success' => true,
                 'receipt_number' => $result['receipt_number'],
                 'message' => $result['message'],
+                'issuing_company' => $companyCode,
+                'issuing_company_name' => $service->getCompanyName(),
             ], 200);
         } else {
             return response()->json([
@@ -58,6 +97,9 @@ class TaiwanReceiptController extends BaseController
      * Void Taiwan E-Invoice
      *
      * DELETE /api/v1/payments/{payment}/taiwan_receipt
+     *
+     * Uses the company code stored in custom_value4 to ensure voiding
+     * uses the same company credentials that issued the e-invoice.
      *
      * @param Request $request
      * @param Payment $payment
@@ -74,14 +116,33 @@ class TaiwanReceiptController extends BaseController
             ], 400);
         }
 
+        // Get the company that issued this e-invoice from custom_value4
+        // Default to 'benfire' for legacy invoices without company code
+        $companyCode = $payment->custom_value4 ?: 'benfire';
+
+        // Validate company code
+        $validCompanies = ['benfire', 'bameixin'];
+        if (!in_array($companyCode, $validCompanies)) {
+            \Log::warning('Invalid company code in custom_value4, defaulting to benfire', [
+                'payment_id' => $payment->id,
+                'custom_value4' => $payment->custom_value4,
+            ]);
+            $companyCode = 'benfire';
+        }
+
+        // Create service with the same company that issued the e-invoice
+        $service = new TaiwanEInvoiceService($companyCode);
+
         // Call service to void receipt
-        $result = $this->service->voidReceipt($payment, $reason);
+        $result = $service->voidReceipt($payment, $reason);
 
         // Return appropriate response
         if ($result['success']) {
             return response()->json([
                 'success' => true,
                 'message' => $result['message'],
+                'voided_by_company' => $companyCode,
+                'voided_by_company_name' => $service->getCompanyName(),
             ], 200);
         } else {
             return response()->json([
@@ -89,5 +150,25 @@ class TaiwanReceiptController extends BaseController
                 'message' => $result['message'],
             ], 400);
         }
+    }
+
+    /**
+     * Check if payment is a manual entry (for frontend to determine UI)
+     *
+     * GET /api/v1/payments/{payment}/taiwan_receipt/payment_type
+     *
+     * @param Payment $payment
+     * @return JsonResponse
+     */
+    public function getPaymentType(Payment $payment): JsonResponse
+    {
+        $isTapPay = $this->isTapPayPayment($payment);
+
+        return response()->json([
+            'is_tappay' => $isTapPay,
+            'is_manual' => !$isTapPay,
+            'transaction_reference' => $payment->transaction_reference,
+            'allow_company_selection' => !$isTapPay,
+        ], 200);
     }
 }
