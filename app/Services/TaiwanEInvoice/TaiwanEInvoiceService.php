@@ -375,12 +375,12 @@ class TaiwanEInvoiceService
             // Calculate totals based on B2B vs B2C
             if ($isB2B) {
                 // B2B (with GUI): API validates Sum(ProductItem.Amount) ÷ 1.05 = SalesAmount
-                // ProductItem amounts are tax-inclusive (already multiplied by 1.05)
-                // SalesAmount is tax-exclusive
-                // Example: itemsTotalTaxInclusive=46893, itemsTotal=44660, tax=2233
-                $salesAmount = $itemsTotal;                        // Tax-exclusive: 44,660
-                $taxAmount = $itemsTotalTaxInclusive - $itemsTotal; // Tax: 2,233
-                $totalAmount = $itemsTotalTaxInclusive;            // Tax-inclusive: 46,893
+                // ProductItem amounts are tax-inclusive (sum stored in itemsTotalTaxInclusive)
+                // SalesAmount MUST be derived from TotalAmount to pass API validation
+                // (cannot use independent itemsTotal because Amount adjustments affect the total)
+                $totalAmount = $itemsTotalTaxInclusive;
+                $salesAmount = (int) round($totalAmount / $taxMultiplier);  // Derive from actual total
+                $taxAmount = $totalAmount - $salesAmount;
             } else {
                 // B2C (no GUI): No tax separation
                 // ProductItem amounts are tax-inclusive already
