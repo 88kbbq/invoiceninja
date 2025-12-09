@@ -128,6 +128,74 @@ class TaiwanEInvoiceService
     }
 
     /**
+     * Calculate exact UnitPrice and Amount that satisfy: Quantity × UnitPrice = Amount
+     *
+     * The Amego API requires this equation to be EXACT (no rounding errors).
+     * For decimal quantities (e.g., 1.5), we need to find integer values that work.
+     *
+     * @param float $quantity The item quantity (can be decimal)
+     * @param float $rawAmount The desired amount before adjustment
+     * @return array [int $unitPrice, int $amount]
+     */
+    protected function calculateExactAmounts(float $quantity, float $rawAmount): array
+    {
+        // For integer quantities, simple rounding works
+        if (floor($quantity) == $quantity) {
+            $amount = (int) round($rawAmount);
+            $unitPrice = (int) round($amount / $quantity);
+            return [$unitPrice, $amount];
+        }
+
+        // For decimal quantities, we need to find Amount where Amount/Quantity is an integer
+        // Strategy: try rounding down, then up, and pick the one that gives integer UnitPrice
+        $amountFloor = (int) floor($rawAmount);
+        $amountCeil = (int) ceil($rawAmount);
+
+        // Check if floor gives an integer UnitPrice
+        $unitPriceFloor = $amountFloor / $quantity;
+        if (abs($unitPriceFloor - round($unitPriceFloor)) < 0.0001) {
+            return [(int) round($unitPriceFloor), $amountFloor];
+        }
+
+        // Check if ceil gives an integer UnitPrice
+        $unitPriceCeil = $amountCeil / $quantity;
+        if (abs($unitPriceCeil - round($unitPriceCeil)) < 0.0001) {
+            return [(int) round($unitPriceCeil), $amountCeil];
+        }
+
+        // Neither works directly - search nearby values
+        // For quantity like 1.5, Amount must be divisible by 1.5 (i.e., Amount × 2 / 3 is integer)
+        // Search within ±10 of the raw amount for a valid combination
+        for ($offset = 1; $offset <= 10; $offset++) {
+            // Try floor - offset
+            $tryAmount = $amountFloor - $offset;
+            $tryUnitPrice = $tryAmount / $quantity;
+            if ($tryAmount > 0 && abs($tryUnitPrice - round($tryUnitPrice)) < 0.0001) {
+                return [(int) round($tryUnitPrice), $tryAmount];
+            }
+
+            // Try ceil + offset
+            $tryAmount = $amountCeil + $offset;
+            $tryUnitPrice = $tryAmount / $quantity;
+            if (abs($tryUnitPrice - round($tryUnitPrice)) < 0.0001) {
+                return [(int) round($tryUnitPrice), $tryAmount];
+            }
+        }
+
+        // Fallback: use rounded values (may cause API error, but logged for debugging)
+        $amount = (int) round($rawAmount);
+        $unitPrice = (int) round($amount / $quantity);
+        \Log::warning('Could not find exact Amount/UnitPrice for decimal quantity', [
+            'quantity' => $quantity,
+            'rawAmount' => $rawAmount,
+            'fallback_unitPrice' => $unitPrice,
+            'fallback_amount' => $amount,
+        ]);
+
+        return [$unitPrice, $amount];
+    }
+
+    /**
      * Generate API signature: md5(data JSON + timestamp + APP Key)
      */
     protected function generateSignature(array $data, int $timestamp): string
@@ -258,23 +326,34 @@ class TaiwanEInvoiceService
                 if ($isB2B) {
                     if ($taxIsExclusive) {
                         // Tax EXCLUSIVE for B2B: UnitPrice must be tax-inclusive for API
-                        // API validates: Quantity × UnitPrice = Amount, then Sum(Amount) ÷ 1.05 = SalesAmount
-                        $unitPrice = (int) round($unitPriceBase * $taxMultiplier);
-                        $amount = (int) round($quantity * $unitPrice);
+                        // API validates: Quantity × UnitPrice = Amount (EXACT), then Sum(Amount) ÷ 1.05 = SalesAmount
+                        $rawUnitPrice = $unitPriceBase * $taxMultiplier;
+                        $rawAmount = $quantity * $rawUnitPrice;
+
+                        // Ensure Quantity × UnitPrice = Amount exactly (API requirement)
+                        // For decimal quantities, we need to find integer UnitPrice and Amount that satisfy this
+                        list($unitPrice, $amount) = $this->calculateExactAmounts($quantity, $rawAmount);
+
                         $itemsTotal += (int) round($quantity * $unitPriceBase);  // Track tax-exclusive
                         $itemsTotalTaxInclusive += $amount;
                     } else {
                         // Tax INCLUSIVE for B2B: Prices already include tax
                         // API still validates: Sum(Amount) ÷ 1.05 = SalesAmount
-                        $unitPrice = $unitPriceBase;  // Already includes tax
-                        $amount = (int) round($quantity * $unitPrice);
+                        $rawAmount = $quantity * $unitPriceBase;
+
+                        // Ensure Quantity × UnitPrice = Amount exactly
+                        list($unitPrice, $amount) = $this->calculateExactAmounts($quantity, $rawAmount);
+
                         $itemsTotal += (int) round($amount / $taxMultiplier);  // Calculate tax-exclusive
                         $itemsTotalTaxInclusive += $amount;
                     }
                 } else {
                     // B2C: No tax multiplication needed
-                    $unitPrice = $unitPriceBase;
-                    $amount = (int) round($quantity * $unitPrice);
+                    $rawAmount = $quantity * $unitPriceBase;
+
+                    // Ensure Quantity × UnitPrice = Amount exactly
+                    list($unitPrice, $amount) = $this->calculateExactAmounts($quantity, $rawAmount);
+
                     $itemsTotal += $amount;
                     $itemsTotalTaxInclusive += $amount;
                 }
