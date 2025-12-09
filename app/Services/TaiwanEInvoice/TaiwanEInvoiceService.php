@@ -98,6 +98,36 @@ class TaiwanEInvoiceService
     }
 
     /**
+     * Get company code from company name
+     * Used for reverse lookup when voiding (custom_value4 stores the name)
+     */
+    public static function getCompanyCodeFromName(string $companyName): ?string
+    {
+        foreach (self::COMPANIES as $code => $company) {
+            if ($company['name'] === $companyName) {
+                return $code;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if a value is a valid company code
+     */
+    public static function isValidCompanyCode(string $value): bool
+    {
+        return isset(self::COMPANIES[$value]);
+    }
+
+    /**
+     * Check if a value is a valid company name
+     */
+    public static function isValidCompanyName(string $value): bool
+    {
+        return self::getCompanyCodeFromName($value) !== null;
+    }
+
+    /**
      * Generate API signature: md5(data JSON + timestamp + APP Key)
      */
     protected function generateSignature(array $data, int $timestamp): string
@@ -331,7 +361,7 @@ class TaiwanEInvoiceService
             $payment->custom_value1 = $receiptNumber;
             $payment->custom_value2 = now()->format('Y-m-d H:i:s');
             $payment->custom_value3 = 'issued';
-            $payment->custom_value4 = $this->companyCode; // Store issuing company for voiding
+            $payment->custom_value4 = $this->getCompanyName(); // Store issuing company name for display
             $payment->save();
 
             \Log::info('Taiwan E-Invoice issued successfully', [

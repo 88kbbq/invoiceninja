@@ -117,17 +117,28 @@ class TaiwanReceiptController extends BaseController
         }
 
         // Get the company that issued this e-invoice from custom_value4
-        // Default to 'benfire' for legacy invoices without company code
-        $companyCode = $payment->custom_value4 ?: 'benfire';
+        // custom_value4 can contain either:
+        // - Company name (犇火燻寶有限公司 or 霸美燻王有限公司) - new format
+        // - Company code (benfire or bameixin) - legacy format
+        // Default to 'benfire' for invoices without company info
+        $storedValue = $payment->custom_value4 ?: '';
+        $companyCode = 'benfire'; // default
 
-        // Validate company code
-        $validCompanies = ['benfire', 'bameixin'];
-        if (!in_array($companyCode, $validCompanies)) {
-            \Log::warning('Invalid company code in custom_value4, defaulting to benfire', [
-                'payment_id' => $payment->id,
-                'custom_value4' => $payment->custom_value4,
-            ]);
-            $companyCode = 'benfire';
+        if (!empty($storedValue)) {
+            // Check if it's a company name (new format)
+            if (TaiwanEInvoiceService::isValidCompanyName($storedValue)) {
+                $companyCode = TaiwanEInvoiceService::getCompanyCodeFromName($storedValue);
+            }
+            // Check if it's a company code (legacy format)
+            elseif (TaiwanEInvoiceService::isValidCompanyCode($storedValue)) {
+                $companyCode = $storedValue;
+            }
+            else {
+                \Log::warning('Unknown company value in custom_value4, defaulting to benfire', [
+                    'payment_id' => $payment->id,
+                    'custom_value4' => $storedValue,
+                ]);
+            }
         }
 
         // Create service with the same company that issued the e-invoice
