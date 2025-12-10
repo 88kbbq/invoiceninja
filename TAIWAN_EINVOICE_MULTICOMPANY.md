@@ -194,6 +194,45 @@ A payment is considered **Manual** if:
 
 ---
 
+## Known Issues Fixed (2025-12-09)
+
+### 1. Test Mode Default Bug
+
+**Problem:** The test mode default was `true`, causing test credentials to be used if the env var wasn't read properly.
+
+```php
+// BEFORE (buggy):
+$this->testMode = config('app.env') !== 'production' || env('TAIWAN_EINVOICE_TEST_MODE', true);
+
+// AFTER (fixed):
+$this->testMode = config('app.env') !== 'production' || env('TAIWAN_EINVOICE_TEST_MODE', false);
+```
+
+**Symptom:** Receipt numbers starting with "EX" (test prefix) instead of production prefixes like "VM" or "VC".
+
+**Fix:** Changed default from `true` to `false`. Production environment now defaults to production mode.
+
+### 2. Decimal Quantity Amount Calculation
+
+**Problem:** For decimal quantities (e.g., 1.5), `Quantity × UnitPrice` might not equal an integer, causing API validation error "Amount 金額錯誤".
+
+**Example:**
+```
+Quantity = 1.5, UnitPrice = 1953
+1.5 × 1953 = 2929.5 → rounded to 2930
+API validates: 1.5 × 1953 ≠ 2930 ❌
+```
+
+**Fix:** Added `calculateExactAmounts()` method that finds integer UnitPrice/Amount pairs satisfying the equation exactly.
+
+### 3. SalesAmount Calculation
+
+**Problem:** When Amount values are adjusted for decimal quantities, TotalAmount changes but SalesAmount was calculated independently, causing "SalesAmount 計算錯誤" error.
+
+**Fix:** SalesAmount is now derived from TotalAmount: `SalesAmount = round(TotalAmount / 1.05)`
+
+---
+
 ## Troubleshooting
 
 ### "Missing API key for company" Error
@@ -208,6 +247,30 @@ A payment is considered **Manual** if:
 - Verify payment is a manual entry (not TapPay)
 - Check `transaction_reference` value in database
 
+### Test Invoice Issued (EX prefix instead of VM/VC)
+
+**Cause:** Test credentials were used instead of production credentials.
+
+**Solution:** Clear the invalid receipt data and re-issue:
+```bash
+php artisan tinker --execute="
+\$payment = App\Models\Payment::where('custom_value1', 'EX_RECEIPT_NUMBER')->first();
+\$payment->custom_value1 = '';
+\$payment->custom_value2 = '';
+\$payment->custom_value3 = '';
+\$payment->custom_value4 = '';
+\$payment->save();
+"
+```
+Then re-issue the e-invoice through the UI.
+
+### "發票不存在" When Voiding
+
+**Possible causes:**
+1. Receipt was issued under a different company - check `custom_value4`
+2. Receipt was issued with test credentials - cannot void in production
+3. Temporary API issue - retry after a few minutes
+
 ---
 
 ## Related Documentation
@@ -217,4 +280,4 @@ A payment is considered **Manual** if:
 
 ---
 
-**Last Updated:** 2025-12-09
+**Last Updated:** 2025-12-10
