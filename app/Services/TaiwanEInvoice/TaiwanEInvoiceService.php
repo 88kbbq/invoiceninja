@@ -50,7 +50,9 @@ class TaiwanEInvoiceService
     public function __construct(string $companyCode = 'benfire')
     {
         $this->apiUrl = 'https://invoice-api.amego.tw';
-        $this->testMode = config('app.env') !== 'production' || env('TAIWAN_EINVOICE_TEST_MODE', true);
+        // Default to production mode in production environment
+        // Only enable test mode if explicitly set or not in production
+        $this->testMode = config('app.env') !== 'production' || env('TAIWAN_EINVOICE_TEST_MODE', false);
         $this->companyCode = $companyCode;
 
         if ($this->testMode) {
