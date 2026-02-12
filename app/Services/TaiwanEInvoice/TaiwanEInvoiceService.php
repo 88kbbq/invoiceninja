@@ -133,68 +133,51 @@ class TaiwanEInvoiceService
      * Calculate exact UnitPrice and Amount that satisfy: Quantity × UnitPrice = Amount
      *
      * The Amego API requires this equation to be EXACT (no rounding errors).
-     * For decimal quantities (e.g., 1.5), we need to find integer values that work.
+     * Amount must be integer. UnitPrice may have up to 4 decimal places (MIG format N..10V4).
+     *
+     * Strategy:
+     * 1. Round Amount to nearest integer (preserves invoice total)
+     * 2. If Amount / Quantity is integer, use integer UnitPrice
+     * 3. Otherwise, use decimal UnitPrice (up to 4 decimal places)
      *
      * @param float $quantity The item quantity (can be decimal)
      * @param float $rawAmount The desired amount before adjustment
-     * @return array [int $unitPrice, int $amount]
+     * @return array [string $unitPrice, int $amount]
      */
     protected function calculateExactAmounts(float $quantity, float $rawAmount): array
     {
-        // For integer quantities, simple rounding works
-        if (floor($quantity) == $quantity) {
-            $amount = (int) round($rawAmount);
-            $unitPrice = (int) round($amount / $quantity);
-            return [$unitPrice, $amount];
-        }
-
-        // For decimal quantities, we need to find Amount where Amount/Quantity is an integer
-        // Strategy: try rounding down, then up, and pick the one that gives integer UnitPrice
-        $amountFloor = (int) floor($rawAmount);
-        $amountCeil = (int) ceil($rawAmount);
-
-        // Check if floor gives an integer UnitPrice
-        $unitPriceFloor = $amountFloor / $quantity;
-        if (abs($unitPriceFloor - round($unitPriceFloor)) < 0.0001) {
-            return [(int) round($unitPriceFloor), $amountFloor];
-        }
-
-        // Check if ceil gives an integer UnitPrice
-        $unitPriceCeil = $amountCeil / $quantity;
-        if (abs($unitPriceCeil - round($unitPriceCeil)) < 0.0001) {
-            return [(int) round($unitPriceCeil), $amountCeil];
-        }
-
-        // Neither works directly - search nearby values
-        // For quantity like 1.5, Amount must be divisible by 1.5 (i.e., Amount × 2 / 3 is integer)
-        // Search within ±10 of the raw amount for a valid combination
-        for ($offset = 1; $offset <= 10; $offset++) {
-            // Try floor - offset
-            $tryAmount = $amountFloor - $offset;
-            $tryUnitPrice = $tryAmount / $quantity;
-            if ($tryAmount > 0 && abs($tryUnitPrice - round($tryUnitPrice)) < 0.0001) {
-                return [(int) round($tryUnitPrice), $tryAmount];
-            }
-
-            // Try ceil + offset
-            $tryAmount = $amountCeil + $offset;
-            $tryUnitPrice = $tryAmount / $quantity;
-            if (abs($tryUnitPrice - round($tryUnitPrice)) < 0.0001) {
-                return [(int) round($tryUnitPrice), $tryAmount];
-            }
-        }
-
-        // Fallback: use rounded values (may cause API error, but logged for debugging)
         $amount = (int) round($rawAmount);
-        $unitPrice = (int) round($amount / $quantity);
-        \Log::warning('Could not find exact Amount/UnitPrice for decimal quantity', [
+
+        // Try integer UnitPrice first
+        $exactUnitPrice = $amount / $quantity;
+        if (abs($exactUnitPrice - round($exactUnitPrice)) < 0.0001) {
+            return [(string) (int) round($exactUnitPrice), $amount];
+        }
+
+        // Use decimal UnitPrice — find minimum decimal places (max 4) where Qty × UnitPrice = Amount
+        for ($decimals = 1; $decimals <= 4; $decimals++) {
+            $factor = 10 ** $decimals;
+            $rounded = round($exactUnitPrice * $factor) / $factor;
+            // Verify exact match: Quantity × rounded UnitPrice must equal Amount
+            if ((int) round($quantity * $rounded) === $amount) {
+                // Format with minimum necessary decimal places (no trailing zeros)
+                $formatted = rtrim(rtrim(number_format($rounded, $decimals, '.', ''), '0'), '.');
+                return [$formatted, $amount];
+            }
+        }
+
+        // Fallback: use 4-decimal UnitPrice (best precision available)
+        $unitPrice4 = round($exactUnitPrice, 4);
+        $formatted = rtrim(rtrim(number_format($unitPrice4, 4, '.', ''), '0'), '.');
+        \Log::warning('UnitPrice×Quantity does not exactly equal Amount (using best 4-decimal approximation)', [
             'quantity' => $quantity,
             'rawAmount' => $rawAmount,
-            'fallback_unitPrice' => $unitPrice,
-            'fallback_amount' => $amount,
+            'unitPrice' => $formatted,
+            'amount' => $amount,
+            'product_check' => $quantity * $unitPrice4,
         ]);
 
-        return [$unitPrice, $amount];
+        return [$formatted, $amount];
     }
 
     /**
@@ -333,7 +316,6 @@ class TaiwanEInvoiceService
                         $rawAmount = $quantity * $rawUnitPrice;
 
                         // Ensure Quantity × UnitPrice = Amount exactly (API requirement)
-                        // For decimal quantities, we need to find integer UnitPrice and Amount that satisfy this
                         list($unitPrice, $amount) = $this->calculateExactAmounts($quantity, $rawAmount);
 
                         $itemsTotal += (int) round($quantity * $unitPriceBase);  // Track tax-exclusive
