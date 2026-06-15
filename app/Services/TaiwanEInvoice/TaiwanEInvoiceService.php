@@ -132,13 +132,14 @@ class TaiwanEInvoiceService
     /**
      * Calculate exact UnitPrice and Amount that satisfy: Quantity × UnitPrice = Amount
      *
-     * The Amego API requires this equation to be EXACT (no rounding errors).
-     * Amount must be integer. UnitPrice may have up to 4 decimal places (MIG format N..10V4).
+     * Amego rejects per-line items where Qty × UnitPrice ≠ Amount with NO rounding
+     * tolerance (error code 3040172 "第N品項 Amount 金額錯誤"). Amount must be integer.
+     * UnitPrice may have up to 4 decimal places (MIG format N..10V4).
      *
-     * Strategy:
-     * 1. Round Amount to nearest integer (preserves invoice total)
-     * 2. If Amount / Quantity is integer, use integer UnitPrice
-     * 3. Otherwise, use decimal UnitPrice (up to 4 decimal places)
+     * Strategy: search integer Amount candidates near rawAmount (ordered by absolute
+     * distance), return the first whose UnitPrice = Amount/Quantity is representable
+     * with ≤4 decimal places EXACTLY. Exactness is checked via integer arithmetic to
+     * avoid float precision issues.
      *
      * @param float $quantity The item quantity (can be decimal)
      * @param float $rawAmount The desired amount before adjustment
@@ -146,38 +147,54 @@ class TaiwanEInvoiceService
      */
     protected function calculateExactAmounts(float $quantity, float $rawAmount): array
     {
-        $amount = (int) round($rawAmount);
-
-        // Try integer UnitPrice first
-        $exactUnitPrice = $amount / $quantity;
-        if (abs($exactUnitPrice - round($exactUnitPrice)) < 0.0001) {
-            return [(string) (int) round($exactUnitPrice), $amount];
+        // Quantity may have up to 6 decimal places in Invoice Ninja
+        $qtyScaled = (int) round($quantity * 1_000_000);
+        if ($qtyScaled === 0) {
+            return ['0', 0];
         }
 
-        // Use decimal UnitPrice — find minimum decimal places (max 4) where Qty × UnitPrice = Amount
-        for ($decimals = 1; $decimals <= 4; $decimals++) {
-            $factor = 10 ** $decimals;
-            $rounded = round($exactUnitPrice * $factor) / $factor;
-            // Verify exact match: Quantity × rounded UnitPrice must equal Amount
-            if ((int) round($quantity * $rounded) === $amount) {
-                // Format with minimum necessary decimal places (no trailing zeros)
-                $formatted = rtrim(rtrim(number_format($rounded, $decimals, '.', ''), '0'), '.');
-                return [$formatted, $amount];
+        // Build candidate Amounts within ±$range of rawAmount, sorted by absolute
+        // distance (ties broken by smaller value, preferring conservative rounding).
+        $center = (int) round($rawAmount);
+        $range = 50;
+        $candidates = [];
+        for ($c = max(1, $center - $range); $c <= $center + $range; $c++) {
+            $candidates[] = [$c, abs($c - $rawAmount)];
+        }
+        usort($candidates, fn($a, $b) => $a[1] <=> $b[1] ?: $a[0] <=> $b[0]);
+
+        foreach ($candidates as [$candidate, $dist]) {
+            // UnitPrice × 10000 must be integer for UnitPrice to fit in ≤4 decimals.
+            // = (candidate × 10000) / quantity = (candidate × 10^10) / qtyScaled
+            $numerator = (float) $candidate * 10_000_000_000.0;  // candidate × 10^10
+            $upX10000 = $numerator / $qtyScaled;
+            $upX10000Rounded = round($upX10000);
+            if (abs($upX10000 - $upX10000Rounded) < 0.001) {
+                $unitPrice = $upX10000Rounded / 10_000.0;
+                $formatted = rtrim(rtrim(number_format($unitPrice, 4, '.', ''), '0'), '.');
+                if ($formatted === '') {
+                    $formatted = '0';
+                }
+                return [$formatted, $candidate];
             }
         }
 
-        // Fallback: use 4-decimal UnitPrice (best precision available)
-        $unitPrice4 = round($exactUnitPrice, 4);
+        // Fallback: no exact candidate found within ±$range. Use best 4-decimal
+        // approximation; Amego will likely reject this — log loudly.
+        $unitPrice4 = round($rawAmount / $quantity, 4);
         $formatted = rtrim(rtrim(number_format($unitPrice4, 4, '.', ''), '0'), '.');
-        \Log::warning('UnitPrice×Quantity does not exactly equal Amount (using best 4-decimal approximation)', [
+        if ($formatted === '') {
+            $formatted = '0';
+        }
+        \Log::warning("Could not find exact UnitPrice/Amount within ±{$range} of rawAmount", [
             'quantity' => $quantity,
             'rawAmount' => $rawAmount,
             'unitPrice' => $formatted,
-            'amount' => $amount,
+            'amount' => $center,
             'product_check' => $quantity * $unitPrice4,
         ]);
 
-        return [$formatted, $amount];
+        return [$formatted, $center];
     }
 
     /**
