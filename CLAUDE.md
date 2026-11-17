@@ -156,14 +156,25 @@ DB_PASSWORD=...
 
 **Standard Backend Deployment Steps:**
 
+> ⚠️ **NEVER run `php artisan optimize` or `php artisan config:cache` on production, and never run
+> artisan as root.** Custom code reads `env()` directly (e.g. `TaiwanEInvoiceService` Amego keys,
+> mail jobs). Once config is cached, `env()` returns `null` outside `config/` files, so e-invoicing
+> fails with *"Missing API key for company 犇火燻寶有限公司"*. Running artisan as root leaves
+> root-owned cache files that `www-data` cannot write (*"file_put_contents … Permission denied"*).
+> Both happened on the 2026-11-17 deploy. Only clear caches, as `www-data`.
+
 1. Commit and push changes to `production` on GitHub for record keeping.
 2. SSH to droplet: `ssh root@128.199.146.209`.
 3. Navigate to project: `cd /var/www/invoiceninja`.
 4. Pull latest code: `git pull origin production`.
 5. Install PHP dependencies: `composer install --no-dev --optimize-autoloader --no-interaction`.
-6. Run database migrations: `php artisan migrate --force --no-interaction`.
-7. Refresh caches: `php artisan optimize:clear && php artisan optimize`.
-8. If queue workers run, restart Supervisor/queue processes as needed.
+6. Run database migrations: `runuser -u www-data -- php artisan migrate --force --no-interaction`.
+7. Fix ownership of anything the deploy wrote: `chown -R www-data:www-data storage/framework bootstrap/cache app tests`.
+8. Clear caches (do NOT rebuild them): `runuser -u www-data -- php artisan optimize:clear`.
+9. Reload PHP and restart workers: `systemctl reload php8.2-fpm && runuser -u www-data -- php artisan queue:restart`.
+10. Verify `bootstrap/cache/` holds no `config.php`, and that e-invoicing can load its keys:
+    `runuser -u www-data -- php artisan tinker --execute='new App\Services\TaiwanEInvoice\TaiwanEInvoiceService("benfire"); echo "OK";'`
+    (constructing the service does not call Amego).
 
 **React UI Deployment (from local machine):**
 
@@ -173,7 +184,7 @@ DB_PASSWORD=...
    rsync -avz --delete dist/react/ root@128.199.146.209:/var/www/invoiceninja/public/react/
    ```
 3. Fix ownership: `ssh root@128.199.146.209 "chown -R www-data:www-data /var/www/invoiceninja/public/react/"`.
-4. Clear caches: `ssh root@128.199.146.209 "cd /var/www/invoiceninja && php artisan optimize:clear"`.
+4. Clear caches: `ssh root@128.199.146.209 "cd /var/www/invoiceninja && runuser -u www-data -- php artisan optimize:clear"`.
 
 **Services & Useful Commands:**
 
@@ -387,10 +398,11 @@ php artisan config:clear
 php artisan route:clear
 php artisan view:clear
 
-# Rebuild caches (for production)
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+# Rebuild caches — LOCAL ONLY. Never on production: custom code calls env()
+# directly, which returns null once config is cached (see Deployment Steps).
+# php artisan config:cache
+# php artisan route:cache
+# php artisan view:cache
 
 # Autoload optimization
 composer dump-autoload -o
@@ -517,7 +529,7 @@ Each hook injects "Print to Kitchen" actions into the respective UI components a
 3. Fix ownership + caches:
    ```bash
    ssh root@128.199.146.209 "chown -R www-data:www-data /var/www/invoiceninja/public/react/"
-   ssh root@128.199.146.209 "cd /var/www/invoiceninja && php artisan optimize:clear"
+   ssh root@128.199.146.209 "cd /var/www/invoiceninja && runuser -u www-data -- php artisan optimize:clear"
    ```
 
 ### WebPRNT Primer
@@ -704,7 +716,7 @@ Cause: Chromium not installed or path incorrect
 Solution:
 1. Install Chromium: apt-get install chromium-browser
 2. Set path in .env: SNAPPDF_CHROMIUM_PATH=/snap/bin/chromium
-3. Clear config cache: php artisan config:cache
+3. Clear config cache: runuser -u www-data -- php artisan config:clear   (never config:cache — see Deployment Steps)
 ```
 
 **Error: Chinese characters show as boxes**
@@ -1450,9 +1462,11 @@ php artisan migrate
    cd /var/www/invoiceninja
    git pull origin production
    composer install --no-dev --optimize-autoloader --no-interaction
-   php artisan migrate --force --no-interaction
-   php artisan optimize:clear
-   php artisan optimize
+   runuser -u www-data -- php artisan migrate --force --no-interaction
+   chown -R www-data:www-data storage/framework bootstrap/cache app tests
+   runuser -u www-data -- php artisan optimize:clear   # NEVER `optimize` / `config:cache`
+   systemctl reload php8.2-fpm
+   runuser -u www-data -- php artisan queue:restart
    EOF
    ```
 
@@ -1476,8 +1490,9 @@ ssh root@128.199.146.209
 cd /var/www/invoiceninja
 git checkout <last-known-good-hash>
 composer install --no-dev --optimize-autoloader --no-interaction
-php artisan migrate:rollback --step=1  # if needed
-php artisan optimize:clear
+runuser -u www-data -- php artisan migrate:rollback --step=1  # if needed
+runuser -u www-data -- php artisan optimize:clear
+systemctl reload php8.2-fpm
 ```
 Follow up by resetting `production` branch to a good state and pushing so future pulls stay consistent.
 
@@ -1537,7 +1552,7 @@ Follow up by resetting `production` branch to a good state and pushing so future
 
 2. **Check configuration**
    ```bash
-   php artisan config:cache  # Rebuild config cache
+   php artisan config:clear  # Clear config cache (NEVER config:cache on production)
    php artisan route:list    # List all routes
    php artisan module:list   # List modules
    ```
@@ -1691,7 +1706,7 @@ rsync -avz --delete ~/InvoiceNinja/invoiceninja-ui/dist/react/ \
 ssh root@128.199.146.209 "chown -R www-data:www-data /var/www/invoiceninja/public/react/"
 
 # Clear Laravel caches
-ssh root@128.199.146.209 "cd /var/www/invoiceninja && php artisan optimize:clear"
+ssh root@128.199.146.209 "cd /var/www/invoiceninja && runuser -u www-data -- php artisan optimize:clear"
 ```
 
 ### Common Issues
@@ -1743,7 +1758,8 @@ After deploying React UI changes:
 - [ ] Both repos committed and pushed
 - [ ] Bundles rsync'd to production
 - [ ] File ownership set to `www-data:www-data`
-- [ ] Laravel caches cleared (`php artisan optimize:clear`)
+- [ ] Laravel caches cleared as www-data (`runuser -u www-data -- php artisan optimize:clear`) — never `optimize`/`config:cache`
+- [ ] `bootstrap/cache/config.php` does NOT exist; e-invoice service constructs (see Deployment Steps step 10)
 - [ ] Browser hard refresh (Ctrl+Shift+R)
 - [ ] Test affected functionality in production
 - [ ] Check browser console for 404 errors
@@ -1794,6 +1810,30 @@ After deploying React UI changes:
 - Should have stopped after 3 attempts and researched APP_KEY encryption
 - Root cause was APP_KEY mismatch from snapshot restore
 - Could have been identified faster with systematic investigation
+
+### Never cache config on production (2026-11-17)
+A deploy ran `php artisan optimize` as root. Config got cached, so `env()` in custom code returned
+`null` and issuing an e-invoice failed with "Missing API key for company 犇火燻寶有限公司"; root-owned
+cache files also caused "Permission denied" errors. Fixed by `chown -R www-data:www-data
+storage/framework bootstrap/cache` + `runuser -u www-data -- php artisan optimize:clear` + php-fpm
+reload. Only ever clear caches on production, as `www-data`. (Moving the `env()` calls into a
+`config/` file would make caching safe, but until that is done, do not cache.)
+
+### Taiwan e-invoice (Amego) amounts (2026-11-17)
+- The e-invoice TotalAmount MUST equal the Invoice Ninja invoice total (rounded to whole NT$, the
+  same rounding TapPay applies to the charge). Line items are reconciled to it — never the reverse.
+  Logic lives in `app/Services/TaiwanEInvoice/EInvoiceAmountCalculator.php` (pure, unit-tested in
+  `tests/Unit/TaiwanEInvoice/`).
+- Amego rules (verified in the Amego sandbox): Quantity × UnitPrice == Amount exactly (3040172);
+  B2B SalesAmount must equal round(Total / 1.05) exactly (3040174); negative (折扣) and zero lines
+  are accepted. OrderId: the SANDBOX rejects reusing an OrderId even after a void (3040171), but
+  PRODUCTION accepted `INV-97148111600647` again the day after its e-invoice was voided
+  (2026-11-17, HK06381364). Production rejects a duplicate while the earlier e-invoice is still
+  active. The code falls back to `INV-<number>-2`, `-3`… only if a voided payment's re-issue is
+  rejected as a duplicate.
+- No local PHP: run the unit tests in Docker, e.g.
+  `docker run --rm -v "$PWD":/app php:8.3-cli php phpunit.phar --bootstrap <file requiring the calculator> /app/tests/Unit/TaiwanEInvoice`.
+- Sandbox credentials (GUI 12345678) are Amego's public test keys and are already in the service.
 
 ### Deployment Safety
 - Never overwrite working installations without verified backups
