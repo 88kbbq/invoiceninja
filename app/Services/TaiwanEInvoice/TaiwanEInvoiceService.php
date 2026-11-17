@@ -25,6 +25,9 @@ class TaiwanEInvoiceService
     protected string $companyCode;
     protected bool $testMode;
 
+    /** Amego: OrderId already used (also after the e-invoice is voided). */
+    protected const ERROR_DUPLICATE_ORDER_ID = 3040171;
+
     /**
      * Company configurations
      * Each company has its own GUI and App Key for Amego API
@@ -130,74 +133,6 @@ class TaiwanEInvoiceService
     }
 
     /**
-     * Calculate exact UnitPrice and Amount that satisfy: Quantity × UnitPrice = Amount
-     *
-     * Amego rejects per-line items where Qty × UnitPrice ≠ Amount with NO rounding
-     * tolerance (error code 3040172 "第N品項 Amount 金額錯誤"). Amount must be integer.
-     * UnitPrice may have up to 4 decimal places (MIG format N..10V4).
-     *
-     * Strategy: search integer Amount candidates near rawAmount (ordered by absolute
-     * distance), return the first whose UnitPrice = Amount/Quantity is representable
-     * with ≤4 decimal places EXACTLY. Exactness is checked via integer arithmetic to
-     * avoid float precision issues.
-     *
-     * @param float $quantity The item quantity (can be decimal)
-     * @param float $rawAmount The desired amount before adjustment
-     * @return array [string $unitPrice, int $amount]
-     */
-    protected function calculateExactAmounts(float $quantity, float $rawAmount): array
-    {
-        // Quantity may have up to 6 decimal places in Invoice Ninja
-        $qtyScaled = (int) round($quantity * 1_000_000);
-        if ($qtyScaled === 0) {
-            return ['0', 0];
-        }
-
-        // Build candidate Amounts within ±$range of rawAmount, sorted by absolute
-        // distance (ties broken by smaller value, preferring conservative rounding).
-        $center = (int) round($rawAmount);
-        $range = 50;
-        $candidates = [];
-        for ($c = max(1, $center - $range); $c <= $center + $range; $c++) {
-            $candidates[] = [$c, abs($c - $rawAmount)];
-        }
-        usort($candidates, fn($a, $b) => $a[1] <=> $b[1] ?: $a[0] <=> $b[0]);
-
-        foreach ($candidates as [$candidate, $dist]) {
-            // UnitPrice × 10000 must be integer for UnitPrice to fit in ≤4 decimals.
-            // = (candidate × 10000) / quantity = (candidate × 10^10) / qtyScaled
-            $numerator = (float) $candidate * 10_000_000_000.0;  // candidate × 10^10
-            $upX10000 = $numerator / $qtyScaled;
-            $upX10000Rounded = round($upX10000);
-            if (abs($upX10000 - $upX10000Rounded) < 0.001) {
-                $unitPrice = $upX10000Rounded / 10_000.0;
-                $formatted = rtrim(rtrim(number_format($unitPrice, 4, '.', ''), '0'), '.');
-                if ($formatted === '') {
-                    $formatted = '0';
-                }
-                return [$formatted, $candidate];
-            }
-        }
-
-        // Fallback: no exact candidate found within ±$range. Use best 4-decimal
-        // approximation; Amego will likely reject this — log loudly.
-        $unitPrice4 = round($rawAmount / $quantity, 4);
-        $formatted = rtrim(rtrim(number_format($unitPrice4, 4, '.', ''), '0'), '.');
-        if ($formatted === '') {
-            $formatted = '0';
-        }
-        \Log::warning("Could not find exact UnitPrice/Amount within ±{$range} of rawAmount", [
-            'quantity' => $quantity,
-            'rawAmount' => $rawAmount,
-            'unitPrice' => $formatted,
-            'amount' => $center,
-            'product_check' => $quantity * $unitPrice4,
-        ]);
-
-        return [$formatted, $center];
-    }
-
-    /**
      * Generate API signature: md5(data JSON + timestamp + APP Key)
      */
     protected function generateSignature(array $data, int $timestamp): string
@@ -253,7 +188,7 @@ class TaiwanEInvoiceService
                 'response_msg' => $responseData['msg'] ?? null,
                 'full_response' => $responseData,
             ]);
-            throw new Exception($responseData['msg'] ?? 'Unknown API error');
+            throw new Exception($responseData['msg'] ?? 'Unknown API error', (int) ($responseData['code'] ?? 0));
         }
 
         return $responseData;
@@ -308,91 +243,56 @@ class TaiwanEInvoiceService
             $buyerGui = preg_replace('/\s+/', '', $buyerGui);
             $isB2B = !empty($buyerGui) && strlen($buyerGui) === 8;
 
-            // Determine tax handling from Invoice Ninja settings
-            // tax_rate1 > 0 (e.g., "5.000000") → Tax EXCLUSIVE (tax added on top)
-            // tax_rate1 = 0 (e.g., "0.000000") → Tax INCLUSIVE (tax already in prices)
-            $taxRate = (float) $invoice->tax_rate1;
-            $taxIsExclusive = $taxRate > 0;
-            $taxMultiplier = $taxIsExclusive ? (1 + ($taxRate / 100)) : 1.05;  // Use 1.05 for inclusive
+            // E-invoice amounts come from the invoice TOTAL — the figure the
+            // customer sees and TapPay charges. Line items are reconciled to it
+            // (invoice discount → 折扣 line, rounding → absorbed or 尾差調整).
+            // See EInvoiceAmountCalculator for the Amego rules this satisfies.
+            $invoiceTaxMultiplier = 1.0;
+            if (!$invoice->uses_inclusive_taxes) {
+                $invoiceTaxMultiplier += ((float) $invoice->tax_rate1 + (float) $invoice->tax_rate2 + (float) $invoice->tax_rate3) / 100;
+            }
 
-            // Prepare line items
-            $productItems = [];
-            $itemsTotal = 0;
-            $itemsTotalTaxInclusive = 0;
-
+            $lines = [];
             foreach ($invoice->line_items as $item) {
-                $quantity = (float) $item->quantity;
-                $unitPriceBase = (int) round((float) $item->cost);
-
-                // Calculate amounts based on B2B/B2C and tax exclusive/inclusive
-                if ($isB2B) {
-                    if ($taxIsExclusive) {
-                        // Tax EXCLUSIVE for B2B: UnitPrice must be tax-inclusive for API
-                        // API validates: Quantity × UnitPrice = Amount (EXACT), then Sum(Amount) ÷ 1.05 = SalesAmount
-                        $rawUnitPrice = $unitPriceBase * $taxMultiplier;
-                        $rawAmount = $quantity * $rawUnitPrice;
-
-                        // Ensure Quantity × UnitPrice = Amount exactly (API requirement)
-                        list($unitPrice, $amount) = $this->calculateExactAmounts($quantity, $rawAmount);
-
-                        $itemsTotal += (int) round($quantity * $unitPriceBase);  // Track tax-exclusive
-                        $itemsTotalTaxInclusive += $amount;
-                    } else {
-                        // Tax INCLUSIVE for B2B: Prices already include tax
-                        // API still validates: Sum(Amount) ÷ 1.05 = SalesAmount
-                        $rawAmount = $quantity * $unitPriceBase;
-
-                        // Ensure Quantity × UnitPrice = Amount exactly
-                        list($unitPrice, $amount) = $this->calculateExactAmounts($quantity, $rawAmount);
-
-                        $itemsTotal += (int) round($amount / $taxMultiplier);  // Calculate tax-exclusive
-                        $itemsTotalTaxInclusive += $amount;
-                    }
-                } else {
-                    // B2C: No tax multiplication needed
-                    $rawAmount = $quantity * $unitPriceBase;
-
-                    // Ensure Quantity × UnitPrice = Amount exactly
-                    list($unitPrice, $amount) = $this->calculateExactAmounts($quantity, $rawAmount);
-
-                    $itemsTotal += $amount;
-                    $itemsTotalTaxInclusive += $amount;
-                }
-
-                // Format quantity without trailing zeros (6 not 6.0, but keep 2.5)
-                $quantityStr = rtrim(rtrim(number_format($quantity, 7, '.', ''), '0'), '.');
-
-                $productItems[] = [
-                    'Description' => $item->product_key ?: $item->notes ?: '服務費',
-                    'Quantity' => $quantityStr,
-                    'Unit' => '式',
-                    'UnitPrice' => (string) $unitPrice,
-                    'Amount' => (string) $amount,
-                    'Remark' => '',
-                    'TaxType' => '1',  // Always 1 (taxable) for now
+                $lines[] = [
+                    'description' => $item->product_key ?: $item->notes ?: '服務費',
+                    'quantity' => (float) $item->quantity,
+                    'gross' => (float) ($item->gross_line_total ?? $item->line_total ?? 0),
                 ];
             }
 
-            // Calculate totals based on B2B vs B2C
-            if ($isB2B) {
-                // B2B (with GUI): API validates Sum(ProductItem.Amount) ÷ 1.05 = SalesAmount
-                // ProductItem amounts are tax-inclusive (sum stored in itemsTotalTaxInclusive)
-                // SalesAmount MUST be derived from TotalAmount to pass API validation
-                // (cannot use independent itemsTotal because Amount adjustments affect the total)
-                $totalAmount = $itemsTotalTaxInclusive;
-                $salesAmount = (int) round($totalAmount / $taxMultiplier);  // Derive from actual total
-                $taxAmount = $totalAmount - $salesAmount;
-            } else {
-                // B2C (no GUI): No tax separation
-                // ProductItem amounts are tax-inclusive already
-                $salesAmount = $itemsTotalTaxInclusive;
-                $taxAmount = 0;
-                $totalAmount = $itemsTotalTaxInclusive;
+            if (abs((float) $invoice->amount - round((float) $invoice->amount)) > 0.0001) {
+                \Log::warning('Taiwan E-Invoice: invoice total has fractional NT$; issuing rounded whole-dollar total (same rounding TapPay charges)', [
+                    'invoice_number' => $invoice->number,
+                    'invoice_amount' => $invoice->amount,
+                ]);
             }
 
-            // Build API request data
+            $calc = EInvoiceAmountCalculator::calculate(
+                $lines,
+                (float) $invoice->amount,
+                $invoiceTaxMultiplier,
+                (float) $invoice->discount > 0,
+                $isB2B
+            );
+
+            $productItems = array_map(fn (array $i) => [
+                'Description' => $i['description'],
+                'Quantity' => $i['quantity'],
+                'Unit' => '式',
+                'UnitPrice' => $i['unitPrice'],
+                'Amount' => (string) $i['amount'],
+                'Remark' => '',
+                'TaxType' => '1',  // Always 1 (taxable, 5%)
+            ], $calc['items']);
+
+            $salesAmount = $calc['salesAmount'];
+            $taxAmount = $calc['taxAmount'];
+            $totalAmount = $calc['totalAmount'];
+
+            // Build API request data (OrderId set per attempt below)
             $requestData = [
-                'OrderId' => 'INV-' . $invoice->number,
+                'OrderId' => '',
                 'BuyerIdentifier' => $isB2B ? $buyerGui : '0000000000',
                 'BuyerName' => $isB2B ? $buyerGui : '客人',
                 'BuyerAddress' => $client->address1 ?? '',
@@ -404,32 +304,51 @@ class TaiwanEInvoiceService
                 'CarrierId2' => '',
                 'NPOBAN' => '', // No donation
                 'ProductItem' => $productItems,
-                'SalesAmount' => (string) $salesAmount,           // String per API example
-                'FreeTaxSalesAmount' => '0',                      // String per API example
-                'ZeroTaxSalesAmount' => '0',                      // String per API example
-                'TaxType' => '1',                                 // String - always 1 (taxable) for now
-                'TaxRate' => $taxIsExclusive ? (string)($taxRate / 100) : '0.05',  // Use invoice tax rate
-                'TaxAmount' => (string) $taxAmount,               // String per API example
-                'TotalAmount' => (string) $totalAmount,           // String per API example
+                'SalesAmount' => (string) $salesAmount,
+                'FreeTaxSalesAmount' => '0',
+                'ZeroTaxSalesAmount' => '0',
+                'TaxType' => '1',
+                'TaxRate' => '0.05',  // Taiwan 營業稅; Amego TaxType 1 is always 5%
+                'TaxAmount' => (string) $taxAmount,
+                'TotalAmount' => (string) $totalAmount,
             ];
 
-            // Log request data for debugging
             \Log::info('Taiwan E-Invoice API Request', [
                 'invoice_number' => $invoice->number,
-                'tax_rate' => $taxRate,
-                'tax_is_exclusive' => $taxIsExclusive,
-                'tax_multiplier' => $taxMultiplier,
-                'itemsTotal_exclusive' => $itemsTotal,
-                'itemsTotal_inclusive' => $itemsTotalTaxInclusive,
+                'invoice_amount' => $invoice->amount,
+                'tax_rates' => [$invoice->tax_rate1, $invoice->tax_rate2, $invoice->tax_rate3],
+                'uses_inclusive_taxes' => (bool) $invoice->uses_inclusive_taxes,
+                'invoice_discount' => $invoice->discount,
                 'salesAmount' => $salesAmount,
                 'taxAmount' => $taxAmount,
                 'totalAmount' => $totalAmount,
-                'validation' => $itemsTotalTaxInclusive . ' ÷ 1.05 = ' . round($itemsTotalTaxInclusive / 1.05),
                 'isB2B' => $isB2B,
             ]);
 
-            // Call Amego API to issue invoice
-            $response = $this->makeRequest('/json/f0401', $requestData);
+            // Amego never reuses an OrderId, even after the e-invoice is voided
+            // (error 3040171 "OrderId 重複"). Only when THIS payment's previous
+            // e-invoice was voided do we retry with a suffix (INV-xxx-2, -3…).
+            // A duplicate without a recorded void may mean an e-invoice already
+            // exists for this order, so it is surfaced, never worked around.
+            $baseOrderId = 'INV-' . $invoice->number;
+            $wasVoided = $payment->custom_value3 === 'voided';
+            $maxAttempts = $wasVoided ? 10 : 1;
+            for ($attempt = 1; ; $attempt++) {
+                $requestData['OrderId'] = $attempt === 1 ? $baseOrderId : $baseOrderId . '-' . $attempt;
+                try {
+                    $response = $this->makeRequest('/json/f0401', $requestData);
+                    break;
+                } catch (Exception $e) {
+                    if ($e->getCode() !== self::ERROR_DUPLICATE_ORDER_ID) {
+                        throw $e;
+                    }
+                    if ($attempt >= $maxAttempts) {
+                        throw new Exception($wasVoided
+                            ? "OrderId {$baseOrderId} already used {$attempt} times at Amego"
+                            : "An e-invoice already exists at Amego for {$baseOrderId} (OrderId 重複). Check Amego before re-issuing.", $e->getCode(), $e);
+                    }
+                }
+            }
 
             // Extract receipt number from response
             $receiptNumber = $response['invoice_number'] ?? null;
