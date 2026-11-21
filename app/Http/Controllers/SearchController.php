@@ -17,6 +17,7 @@ use App\Utils\Ninja;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Quote;
+use App\Models\Payment;
 use App\Models\Project;
 use Elastic\Elasticsearch\ClientBuilder;
 use App\Http\Requests\Search\GenericSearchRequest;
@@ -31,6 +32,8 @@ class SearchController extends Controller
     private array $invoices = [];
 
     private array $quotes = [];
+
+    private array $payments = [];
 
     private array $expenses = [];
 
@@ -67,6 +70,8 @@ class SearchController extends Controller
 
         $this->quoteMap($user);
 
+        $this->paymentMap($user);
+
         $this->projectMap($user);
 
         return response()->json([
@@ -74,6 +79,7 @@ class SearchController extends Controller
             'client_contacts' => $this->client_contacts,
             'invoices' => $this->invoices,
             'quotes' => $this->quotes,
+            'payments' => $this->payments,
             'projects' => $this->projects,
             'settings' => $this->settingsMap(),
         ], 200);
@@ -470,6 +476,35 @@ class SearchController extends Controller
                 'type' => '/quote',
                 'id' => $quote->hashed_id,
                 'path' => "/quotes/{$quote->hashed_id}/edit"
+            ];
+        }
+
+    }
+
+    private function paymentMap(User $user)
+    {
+
+        $payments = Payment::query()
+                     ->withTrashed()
+                     ->company()
+                     ->with('client.contacts')
+                     ->where('is_deleted', 0)
+                     ->whereHas('client', function ($q) {
+                         $q->where('is_deleted', 0);
+                     })
+                     ->when(!$user->hasPermission('view_all') || !$user->hasPermission('view_payment'), function ($query) use ($user) {
+                         $query->where('payments.user_id', $user->id);
+                     })
+                     ->orderBy('id', 'desc')
+                    ->take(3000)
+                    ->get();
+
+        foreach ($payments as $payment) {
+            $this->payments[] = [
+                'name' => $payment->client->present()->name() . ' - ' . $payment->number,
+                'type' => '/payment',
+                'id' => $payment->hashed_id,
+                'path' => "/payments/{$payment->hashed_id}/edit"
             ];
         }
 
