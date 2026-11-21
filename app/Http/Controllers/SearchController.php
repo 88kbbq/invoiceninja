@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Utils\Ninja;
 use App\Models\Client;
 use App\Models\Invoice;
+use App\Models\Quote;
 use App\Models\Project;
 use Elastic\Elasticsearch\ClientBuilder;
 use App\Http\Requests\Search\GenericSearchRequest;
@@ -64,12 +65,15 @@ class SearchController extends Controller
 
         $this->invoiceMap($user);
 
+        $this->quoteMap($user);
+
         $this->projectMap($user);
 
         return response()->json([
             'clients' => $this->clients,
             'client_contacts' => $this->client_contacts,
             'invoices' => $this->invoices,
+            'quotes' => $this->quotes,
             'projects' => $this->projects,
             'settings' => $this->settingsMap(),
         ], 200);
@@ -350,12 +354,13 @@ class SearchController extends Controller
         $clients =  Client::query()
                      ->withTrashed()
                      ->company()
+                     ->with('contacts')
                      ->where('is_deleted', 0)
                      ->when(!$user->hasPermission('view_all') || !$user->hasPermission('view_client'), function ($query) use ($user) {
                          $query->where('user_id', $user->id);
                      })
                      ->orderBy('updated_at', 'desc')
-                     ->take(1000)
+                     ->take(10000)
                      ->get();
 
         foreach ($clients as $client) {
@@ -366,12 +371,16 @@ class SearchController extends Controller
                 'path' => "/clients/{$client->hashed_id}"
             ];
 
-            $client->contacts->each(function ($contact) {
+            $client->contacts->each(function ($contact) use ($client) {
+                // Nameless contacts fall back to the client's name in the presenter;
+                // reuse the loaded client instead of one query per contact.
+                $contact->setRelation('client', $client);
+
                 $this->client_contacts[] = [
                     'name' => $contact->present()->search_display(),
                     'type' => '/client',
-                    'id' => $contact->client->hashed_id,
-                    'path' => "/clients/{$contact->client->hashed_id}"
+                    'id' => $client->hashed_id,
+                    'path' => "/clients/{$client->hashed_id}"
                 ];
             });
         }
@@ -414,7 +423,7 @@ class SearchController extends Controller
         $invoices = Invoice::query()
                      ->withTrashed()
                      ->company()
-                     ->with('client')
+                     ->with('client.contacts')
                      ->where('is_deleted', 0)
                      ->whereHas('client', function ($q) {
                          $q->where('is_deleted', 0);
@@ -432,6 +441,35 @@ class SearchController extends Controller
                 'type' => '/invoice',
                 'id' => $invoice->hashed_id,
                 'path' => "/invoices/{$invoice->hashed_id}/edit"
+            ];
+        }
+
+    }
+
+    private function quoteMap(User $user)
+    {
+
+        $quotes = Quote::query()
+                     ->withTrashed()
+                     ->company()
+                     ->with('client.contacts')
+                     ->where('is_deleted', 0)
+                     ->whereHas('client', function ($q) {
+                         $q->where('is_deleted', 0);
+                     })
+                     ->when(!$user->hasPermission('view_all') || !$user->hasPermission('view_quote'), function ($query) use ($user) {
+                         $query->where('quotes.user_id', $user->id);
+                     })
+                     ->orderBy('id', 'desc')
+                    ->take(3000)
+                    ->get();
+
+        foreach ($quotes as $quote) {
+            $this->quotes[] = [
+                'name' => $quote->client->present()->name() . ' - ' . $quote->number,
+                'type' => '/quote',
+                'id' => $quote->hashed_id,
+                'path' => "/quotes/{$quote->hashed_id}/edit"
             ];
         }
 
